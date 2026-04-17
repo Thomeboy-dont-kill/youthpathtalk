@@ -1,0 +1,4 @@
+GET http://localhost:8081/api/segment/get/leaf-segment-test
+###
+GET http://localhost:8081/api/snowflake/get/leaf-segment-test
+###

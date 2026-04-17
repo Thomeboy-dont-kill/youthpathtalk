@@ -1,0 +1,19 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>com.neu.youthpathtalk</groupId>
+        <artifactId>youthpathtalk</artifactId>
+        <version>1.0-SNAPSHOT</version>
+    </parent>
+
+    <packaging>pom</packaging>
+    <modules>
+        <module>youthpathtalk-user-api</module>
+        <module>youthpathtalk-user-biz</module>
+    </modules>
+
+    <artifactId>youthpathtalk-user</artifactId>
+    <name>youthpathtalk-user</name>
+    <description>用户服务的biz和api</description>
+</project>

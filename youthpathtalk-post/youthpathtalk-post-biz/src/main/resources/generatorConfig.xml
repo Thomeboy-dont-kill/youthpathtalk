@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE generatorConfiguration
+        PUBLIC "-//mybatis.org//DTD MyBatis Generator Configuration 1.0//EN"
+        "http://mybatis.org/dtd/mybatis-generator-config_1_0.dtd">
+
+<generatorConfiguration>
+
+    <context id="mysqlTables" targetRuntime="MyBatis3" defaultModelType="flat">
+
+        <!-- 自动处理SQL关键字 -->
+        <property name="autoDelimitKeywords" value="true"/>
+        <property name="beginningDelimiter" value="`"/>
+        <property name="endingDelimiter" value="`"/>
+
+        <!-- Java编码 -->
+        <property name="javaFileEncoding" value="UTF-8"/>
+
+        <!-- 注释控制 -->
+        <commentGenerator>
+            <property name="suppressAllComments" value="true"/>
+        </commentGenerator>
+
+        <!-- 数据库连接 -->
+        <jdbcConnection driverClass="com.mysql.cj.jdbc.Driver"
+                        connectionURL="jdbc:mysql://127.0.0.1:3306/post_db"
+                        userId="root"
+                        password="${DB_PASSWORD}">
+            <property name="nullCatalogMeansCurrent" value="true"/>
+        </jdbcConnection>
+
+        <!-- 类型解析 -->
+        <javaTypeResolver>
+            <property name="forceBigDecimals" value="false"/>
+        </javaTypeResolver>
+
+        <!-- DO 实体类 -->
+        <javaModelGenerator
+                targetPackage="com.neu.youthpathtalk.post.biz.entity"
+                targetProject="src/main/java"/>
+
+        <!-- Mapper XML -->
+        <sqlMapGenerator
+                targetPackage="com.neu.youthpathtalk.post.biz.mapper"
+                targetProject="src/main/resources"/>
+
+        <!-- Mapper 接口 -->
+        <javaClientGenerator
+                type="XMLMAPPER"
+                targetPackage="com.neu.youthpathtalk.post.biz.mapper"
+                targetProject="src/main/java"/>
+
+        <!-- 表配置 -->
+        <table tableName="t_post"
+               domainObjectName="PostDO"
+               enableCountByExample="false"
+               enableUpdateByExample="false"
+               enableDeleteByExample="false"
+               enableSelectByExample="false"
+               selectByExampleQueryId="false"/>
+
+    </context>
+
+</generatorConfiguration>

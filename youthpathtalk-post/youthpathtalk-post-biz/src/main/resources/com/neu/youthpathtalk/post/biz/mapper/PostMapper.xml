@@ -1,0 +1,234 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.neu.youthpathtalk.post.biz.mapper.PostMapper">
+    <!-- 根据ID查询详情 -->
+    <select id="selectAuthorByIds" resultType="com.neu.youthpathtalk.post.biz.dto.PostAuthorDTO">
+        SELECT id AS postId, user_id AS userId
+        FROM t_post
+        WHERE id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </select>
+    <select id="selectById" resultType="com.neu.youthpathtalk.post.biz.vo.resp.PostDetailRespVO">
+        SELECT
+            user_id, username, user_avatar, university_name,
+            board_type, title, content, view_count, like_count,
+            comment_count, favorite_count, update_time
+        FROM t_post
+        WHERE id = #{id} AND status = 1
+    </select>
+    <select id="selectBasicInfoById" resultType="com.neu.youthpathtalk.post.biz.dto.PostBasicInfoDTO">
+        SELECT
+            user_id, status
+        FROM t_post
+        WHERE id = #{id}
+    </select>
+    <select id="selectByCursor" resultType="com.neu.youthpathtalk.post.biz.vo.resp.PostListVO">
+        SELECT
+        id,
+        user_id,
+        username,
+        user_avatar,
+        university_name,
+        board_type,
+        title,
+        SUBSTRING(content, 1, 50) AS preview,
+        view_count,
+        like_count,
+        comment_count,
+        favorite_count,
+        is_top,
+        is_essence,
+        update_time
+        FROM t_post
+        WHERE status = 1
+        <if test="cursor.lastUpdateTime != null and cursor.lastId != null
+              and cursor.lastIsTop != null and cursor.lastIsEssence != null">
+            AND (
+            (is_top &lt; #{cursor.lastIsTop})
+            OR (is_top = #{cursor.lastIsTop} AND is_essence &lt; #{cursor.lastIsEssence})
+            OR (is_top = #{cursor.lastIsTop} AND is_essence = #{cursor.lastIsEssence}
+            AND (update_time &lt; #{cursor.lastUpdateTime}
+            OR (update_time = #{cursor.lastUpdateTime} AND id &lt; #{cursor.lastId})))
+            )
+        </if>
+        ORDER BY is_top DESC, is_essence DESC, update_time DESC, id DESC
+        LIMIT #{limit}
+    </select>
+    <select id="selectPostListByIds" resultType="com.neu.youthpathtalk.post.biz.vo.resp.PostListVO">
+        SELECT
+            id,
+            user_id,
+            username,
+            user_avatar,
+            university_name,
+            board_type,
+            title,
+            SUBSTRING(content, 1, 50) AS preview,
+            view_count,
+            like_count,
+            comment_count,
+            favorite_count,
+            is_top,
+            is_essence,
+            update_time
+        FROM t_post
+        WHERE status = 1
+        AND id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </select>
+    <select id="selectHotBoardByIds" resultType="com.neu.youthpathtalk.post.biz.vo.resp.HotBoardItemVO">
+        SELECT
+            id,title
+        FROM t_post
+        WHERE status = 1
+        AND id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </select>
+    <insert id="insertSelective" parameterType="com.neu.youthpathtalk.post.biz.entity.PostDO">
+        insert into t_post
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="id != null">
+                id,
+            </if>
+            <if test="userId != null">
+                user_id,
+            </if>
+            <if test="username != null">
+                username,
+            </if>
+            <if test="userAvatar != null">
+                user_avatar,
+            </if>
+            <if test="universityId != null">
+                university_id,
+            </if>
+            <if test="universityName != null">
+                university_name,
+            </if>
+            <if test="boardType != null">
+                board_type,
+            </if>
+            <if test="title != null">
+                title,
+            </if>
+            <if test="viewCount != null">
+                view_count,
+            </if>
+            <if test="likeCount != null">
+                like_count,
+            </if>
+            <if test="commentCount != null">
+                comment_count,
+            </if>
+            <if test="favoriteCount != null">
+                favorite_count,
+            </if>
+            <if test="isTop != null">
+                is_top,
+            </if>
+            <if test="isEssence != null">
+                is_essence,
+            </if>
+            <if test="status != null">
+                `status`,
+            </if>
+            <if test="createTime != null">
+                create_time,
+            </if>
+            <if test="updateTime != null">
+                update_time,
+            </if>
+            <if test="content != null">
+                content,
+            </if>
+        </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="id != null">
+                #{id,jdbcType=BIGINT},
+            </if>
+            <if test="userId != null">
+                #{userId,jdbcType=BIGINT},
+            </if>
+            <if test="username != null">
+                #{username,jdbcType=VARCHAR},
+            </if>
+            <if test="userAvatar != null">
+                #{userAvatar,jdbcType=VARCHAR},
+            </if>
+            <if test="universityId != null">
+                #{universityId,jdbcType=BIGINT},
+            </if>
+            <if test="universityName != null">
+                #{universityName,jdbcType=VARCHAR},
+            </if>
+            <if test="boardType != null">
+                #{boardType,jdbcType=TINYINT},
+            </if>
+            <if test="title != null">
+                #{title,jdbcType=VARCHAR},
+            </if>
+            <if test="viewCount != null">
+                #{viewCount,jdbcType=INTEGER},
+            </if>
+            <if test="likeCount != null">
+                #{likeCount,jdbcType=INTEGER},
+            </if>
+            <if test="commentCount != null">
+                #{commentCount,jdbcType=INTEGER},
+            </if>
+            <if test="favoriteCount != null">
+                #{favoriteCount,jdbcType=INTEGER},
+            </if>
+            <if test="isTop != null">
+                #{isTop,jdbcType=TINYINT},
+            </if>
+            <if test="isEssence != null">
+                #{isEssence,jdbcType=TINYINT},
+            </if>
+            <if test="status != null">
+                #{status,jdbcType=TINYINT},
+            </if>
+            <if test="createTime != null">
+                #{createTime,jdbcType=TIMESTAMP},
+            </if>
+            <if test="updateTime != null">
+                #{updateTime,jdbcType=TIMESTAMP},
+            </if>
+            <if test="content != null">
+                #{content,jdbcType=LONGVARCHAR},
+            </if>
+        </trim>
+    </insert>
+    <update id="updatePostById">
+        UPDATE t_post
+        <set>
+            <if test="boardType != null">
+                board_type = #{boardType.type},
+            </if>
+            <if test="title != null and title.trim() != ''">
+                title = #{title},
+            </if>
+            <if test="content != null and content.trim() != ''">
+                content = #{content},
+            </if>
+        </set>
+        WHERE id = #{id}
+        AND status = 1
+    </update>
+    <delete id="physicalDeleteByIds">
+        DELETE FROM t_post
+        WHERE id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </delete>
+</mapper>
+

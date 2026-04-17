@@ -1,0 +1,12 @@
+spring:
+  profiles:
+    active: dev
+
+logging:
+  level:
+    org.apache.rocketmq: DEBUG
+    com:
+      neu:
+        youthpathtalk:
+          collect:
+            biz: DEBUG

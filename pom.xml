@@ -1,0 +1,331 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <groupId>com.neu.youthpathtalk</groupId>
+  <artifactId>youthpathtalk</artifactId>
+  <version>1.0-SNAPSHOT</version>
+
+  <!--项目名称-->
+  <name>${project.artifactId}</name>
+  <!--项目描述-->
+  <description>青途说，基于Spring Cloud Alibaba微服务架构</description>
+
+  <!--多模块项目需要配置打包方式为pom-->
+  <packaging>pom</packaging>
+
+  <!--子模块管理-->
+  <modules>
+    <module>youthpath-framework</module>
+    <module>youthpathtalk-auth</module>
+    <module>youthpathtalk-distributed-id-generator</module>
+    <module>youthpathtalk-gateway</module>
+    <module>youthpathtalk-post</module>
+    <module>youthpathtalk-user</module>
+    <module>youthpathtalk-compensate</module>
+  </modules>
+
+  <properties>
+    <!-- JDK 版本 -->
+    <java.version>17</java.version>
+    <maven.compiler.source>${java.version}</maven.compiler.source>
+    <maven.compiler.target>${java.version}</maven.compiler.target>
+    <!--项目编码-->
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <!-- Maven 相关版本号 -->
+    <maven-compiler-plugin.version>3.13.0</maven-compiler-plugin.version>
+    <mybatis-generator-maven-plugin.version>1.4.2</mybatis-generator-maven-plugin.version>
+    <!--自定义依赖包版本-->
+    <youthpath-common.version>1.0-SNAPSHOT</youthpath-common.version>
+    <youthpathtalk-user-api.version>1.0-SNAPSHOT</youthpathtalk-user-api.version>
+    <youthpathtalk-post-api.version>1.0-SNAPSHOT</youthpathtalk-post-api.version>
+    <youthpathtalk-distributed-idGen-api.version>1.0-SNAPSHOT</youthpathtalk-distributed-idGen-api.version>
+    <youthpath-spring-boot-starter-jackson.version>1.0-SNAPSHOT</youthpath-spring-boot-starter-jackson.version>
+    <youthpath-spring-boot-starter-biz-context.version>1.0-SNAPSHOT</youthpath-spring-boot-starter-biz-context.version>
+    <youthpath-spring-boot-starter-biz-operationlog.version>1.0-SNAPSHOT</youthpath-spring-boot-starter-biz-operationlog.version>
+    <!--依赖包版本-->
+    <spring-boot.version>3.4.5</spring-boot.version>
+    <spring-cloud.version>2024.0.0</spring-cloud.version>
+    <spring-cloud-alibaba.version>2023.0.1.2</spring-cloud-alibaba.version>
+    <transmittable-thread-local.version>2.14.5</transmittable-thread-local.version>
+    <commons-lang3.version>3.17.0</commons-lang3.version>
+    <lombok.version>1.18.36</lombok.version>
+    <feign-form.version>3.8.0</feign-form.version>
+    <jackson.version>2.18.2</jackson.version>
+    <druid.version>1.2.22</druid.version>
+    <mysql-connector-j.version>9.1.0</mysql-connector-j.version>
+    <mapstruct.version>1.5.5.Final</mapstruct.version>
+    <mybatis-spring.version>3.0.4</mybatis-spring.version>
+    <guava.version>33.4.0-jre</guava.version>
+    <commons-io.version>2.4</commons-io.version>
+    <perf4j.version>0.9.16</perf4j.version>
+    <sa-token.version>1.39.0</sa-token.version>
+    <rocketmq-client.version>4.9.7</rocketmq-client.version>
+    <rocketmq-spring-boot-starter.version>2.2.3</rocketmq-spring-boot-starter.version>
+    <buffertrigger.version>0.2.21</buffertrigger.version>
+    <redisson.version>3.23.4</redisson.version>
+  </properties>
+
+  <!--统一依赖管理-->
+  <dependencyManagement>
+    <dependencies>
+      <!-- Spring Boot 官方依赖管理 -->
+      <dependency>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-dependencies</artifactId>
+        <version>${spring-boot.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+
+      <!-- Spring Cloud Alibaba 官方依赖管理 -->
+      <dependency>
+        <groupId>com.alibaba.cloud</groupId>
+        <artifactId>spring-cloud-alibaba-dependencies</artifactId>
+        <version>${spring-cloud-alibaba.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+
+      <!-- Spring Cloud 官方依赖管理 -->
+      <dependency>
+        <groupId>org.springframework.cloud</groupId>
+        <artifactId>spring-cloud-dependencies</artifactId>
+        <version>${spring-cloud.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+
+      <!--自定义依赖包-->
+      <dependency>
+        <groupId>com.neu.youthpathtalk</groupId>
+        <artifactId>youthpath-spring-boot-starter-biz-context</artifactId>
+        <version>${youthpath-spring-boot-starter-biz-context.version}</version>
+      </dependency>
+
+      <dependency>
+        <groupId>com.neu.youthpathtalk</groupId>
+        <artifactId>youthpath-spring-boot-starter-biz-operationlog</artifactId>
+        <version>${youthpath-spring-boot-starter-biz-operationlog.version}</version>
+      </dependency>
+
+      <dependency>
+        <groupId>com.neu.youthpathtalk</groupId>
+        <artifactId>youthpathtalk-post-api</artifactId>
+        <version>${youthpathtalk-post-api.version}</version>
+      </dependency>
+
+      <dependency>
+        <groupId>com.neu.youthpathtalk</groupId>
+        <artifactId>youthpathtalk-user-api</artifactId>
+        <version>${youthpathtalk-user-api.version}</version>
+      </dependency>
+
+      <dependency>
+        <groupId>com.neu.youthpathtalk</groupId>
+        <artifactId>youthpathtalk-distributed-id-generator-api</artifactId>
+        <version>${youthpathtalk-distributed-idGen-api.version}</version>
+      </dependency>
+
+      <dependency>
+        <groupId>com.neu.youthpathtalk</groupId>
+        <artifactId>youthpath-common</artifactId>
+        <version>${youthpath-common.version}</version>
+      </dependency>
+
+      <dependency>
+        <groupId>com.neu.youthpathtalk</groupId>
+        <artifactId>youthpath-spring-boot-starter-jackson</artifactId>
+        <version>${youthpath-spring-boot-starter-jackson.version}</version>
+      </dependency>
+
+      <dependency>
+        <groupId>cn.dev33</groupId>
+        <artifactId>sa-token-spring-boot3-starter</artifactId>
+        <version>${sa-token.version}</version>
+      </dependency>
+
+      <!-- Sa-Token 权限认证，在线文档：https://sa-token.cc -->
+      <dependency>
+        <groupId>cn.dev33</groupId>
+        <artifactId>sa-token-reactor-spring-boot3-starter</artifactId>
+        <version>${sa-token.version}</version>
+      </dependency>
+
+      <!-- Sa-Token 整合 Redis （使用 jackson 序列化方式） -->
+      <dependency>
+        <groupId>cn.dev33</groupId>
+        <artifactId>sa-token-redis-jackson</artifactId>
+        <version>${sa-token.version}</version>
+      </dependency>
+
+      <dependency>
+        <groupId>org.perf4j</groupId>
+        <artifactId>perf4j</artifactId>
+        <version>${perf4j.version}</version>
+      </dependency>
+
+      <dependency>
+        <groupId>commons-io</groupId>
+        <artifactId>commons-io</artifactId>
+        <version>${commons-io.version}</version>
+      </dependency>
+
+      <dependency>
+        <groupId>com.google.guava</groupId>
+        <artifactId>guava</artifactId>
+        <version>${guava.version}</version>
+      </dependency>
+
+      <dependency>
+        <groupId>org.mybatis.spring.boot</groupId>
+        <artifactId>mybatis-spring-boot-starter</artifactId>
+        <version>${mybatis-spring.version}</version>
+      </dependency>
+
+      <dependency>
+        <groupId>com.alibaba</groupId>
+        <artifactId>transmittable-thread-local</artifactId>
+        <version>${transmittable-thread-local.version}</version>
+      </dependency>
+
+      <dependency>
+        <groupId>org.apache.commons</groupId>
+        <artifactId>commons-lang3</artifactId>
+        <version>${commons-lang3.version}</version>
+      </dependency>
+
+      <dependency>
+        <groupId>org.projectlombok</groupId>
+        <artifactId>lombok</artifactId>
+        <version>${lombok.version}</version>
+      </dependency>
+
+      <dependency>
+        <groupId>io.github.openfeign.form</groupId>
+        <artifactId>feign-form</artifactId>
+        <version>${feign-form.version}</version>
+      </dependency>
+
+      <dependency>
+        <groupId>com.fasterxml.jackson.core</groupId>
+        <artifactId>jackson-databind</artifactId>
+        <version>${jackson.version}</version>
+      </dependency>
+
+      <dependency>
+        <groupId>com.fasterxml.jackson.core</groupId>
+        <artifactId>jackson-core</artifactId>
+        <version>${jackson.version}</version>
+      </dependency>
+
+      <dependency>
+        <groupId>com.alibaba</groupId>
+        <artifactId>druid-spring-boot-starter</artifactId>
+        <version>${druid.version}</version>
+      </dependency>
+
+      <dependency>
+        <groupId>org.apache.rocketmq</groupId>
+        <artifactId>rocketmq-spring-boot-starter</artifactId>
+        <version>${rocketmq-spring-boot-starter.version}</version>
+      </dependency>
+
+      <dependency>
+        <groupId>org.apache.rocketmq</groupId>
+        <artifactId>rocketmq-client</artifactId>
+        <version>${rocketmq-client.version}</version>
+      </dependency>
+
+      <!-- 快手 Buffer Trigger -->
+      <dependency>
+        <groupId>com.github.phantomthief</groupId>
+        <artifactId>buffer-trigger</artifactId>
+        <version>${buffertrigger.version}</version>
+      </dependency>
+
+      <dependency>
+        <groupId>org.redisson</groupId>
+        <artifactId>redisson-spring-boot-starter</artifactId>
+        <version>${redisson.version}</version>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
+
+  <build>
+    <!-- 统一插件管理 -->
+    <pluginManagement>
+      <plugins>
+
+        <plugin>
+          <groupId>org.springframework.boot</groupId>
+          <artifactId>spring-boot-maven-plugin</artifactId>
+          <version>${spring-boot.version}</version>
+          <executions>
+            <execution>
+              <id>repackage</id>
+              <goals>
+                <goal>repackage</goal> <!-- 将依赖的 Jar 一起打包 -->
+              </goals>
+            </execution>
+          </executions>
+        </plugin>
+
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-compiler-plugin</artifactId>
+          <version>${maven-compiler-plugin.version}</version>
+          <configuration>
+            <source>${java.version}</source>
+            <target>${java.version}</target>
+            <encoding>${project.build.sourceEncoding}</encoding>
+            <compilerArgs>
+              <arg>-parameters</arg>
+            </compilerArgs>
+            <annotationProcessorPaths>
+              <path>
+                <groupId>org.mapstruct</groupId>
+                <artifactId>mapstruct-processor</artifactId>
+                <version>${mapstruct.version}</version>
+              </path>
+              <path>
+                <groupId>org.projectlombok</groupId>
+                <artifactId>lombok</artifactId>
+                <version>${lombok.version}</version>
+              </path>
+            </annotationProcessorPaths>
+          </configuration>
+        </plugin>
+
+        <!-- 代码生成器 -->
+        <plugin>
+          <groupId>org.mybatis.generator</groupId>
+          <artifactId>mybatis-generator-maven-plugin</artifactId>
+          <version>${mybatis-generator-maven-plugin.version}</version>
+          <configuration>
+            <!--显式写configFile,否则插件会默认找:src/main/resources/generatorConfig.xml-->
+            <configurationFile>
+              src/main/resources/generatorConfig.xml
+            </configurationFile>
+            <!-- 允许移动生成的文件 -->
+            <verbose>true</verbose>
+            <!-- 允许覆盖生成的文件 -->
+            <overwrite>true</overwrite>
+          </configuration>
+          <!-- 此插件需要连接数据库，所以需要依赖 MySQL 驱动 -->
+          <dependencies>
+            <dependency>
+              <groupId>com.mysql</groupId>
+              <artifactId>mysql-connector-j</artifactId>
+              <version>${mysql-connector-j.version}</version>
+            </dependency>
+          </dependencies>
+        </plugin>
+
+
+      </plugins>
+    </pluginManagement>
+
+  </build>
+
+</project>

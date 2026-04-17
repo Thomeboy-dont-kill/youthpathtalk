@@ -1,0 +1,53 @@
+leaf:
+  name: com.sankuai.leaf.opensource.test
+  segment:
+    enable: true
+    url: ${spring.datasource.url}
+    username: ${spring.datasource.username}
+    password: ${DB_PASSWORD}
+  snowflake:
+    enable: true
+    address: localhost:2181
+    port: 8081
+
+spring:
+  cloud:
+    nacos:
+      server-addr: localhost:8848
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://localhost:3306/leaf_db
+    username: root
+    password: ${DB_PASSWORD}
+    type: com.alibaba.druid.pool.DruidDataSource
+    druid:
+      initial-size: 5 # 初始化连接池大小
+      min-idle: 5 # 连接池中保持的最小空闲连接数
+      max-active: 20 # 最大连接池数量
+      max-wait: 60000 # 连接时最大等待时间（单位：毫秒）
+      test-while-idle: true # 检测空闲连接是否有效
+      time-between-eviction-runs-millis: 60000 # 配置多久进行一次检测，检测需要关闭的连接（单位：毫秒）
+      min-evictable-idle-time-millis: 300000 # 连接最小空闲时间，超过后可能被回收（单位：毫秒）
+      max-evictable-idle-time-millis: 900000 # 连接空闲超过这个时间一定会被回收（单位：毫秒）
+      validation-query: SELECT 1 # 配置测试连接是否可用的查询 sql
+      test-on-borrow: false # 获取连接时是否检测连接有效
+      test-on-return: false # 归还连接时是否检测
+      pool-prepared-statements: false # 是否缓存PreparedStatement
+      web-stat-filter:
+        enabled: true # 开启Web监控过滤器（URL,SQL）
+      stat-view-servlet:
+        enabled: true # 开启Druid监控页面
+        url-pattern: /druid/* # 配置监控后台访问路径
+        login-username: admin # 配置监控后台登录的用户名、密码
+        login-password: admin
+      filter:
+        config:
+          enabled: true
+        stat:
+          enabled: true
+          log-slow-sql: true # 开启慢 sql 记录
+          slow-sql-millis: 2000 # 若执行耗时大于 2s，则视为慢 sql
+          merge-sql: true # 聚合SQL
+        wall: # 防火墙
+          config:
+            multi-statement-allow: false # 禁止多语句SQL，防止SQL注入

@@ -1,0 +1,68 @@
+package com.neu.youthpathtalk.post.biz.controller;
+
+import com.neu.youthpathtalk.post.biz.service.PostService;
+import com.neu.youthpathtalk.post.biz.vo.req.CursorPageReqVO;
+import com.neu.youthpathtalk.post.biz.vo.req.PostReqVO;
+import com.neu.youthpathtalk.post.biz.vo.req.PostUpdateReqVO;
+import com.neu.youthpathtalk.post.biz.vo.resp.*;
+import com.neu.youthpathtalk.response.Response;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotNull;
+import lombok.RequiredArgsConstructor;
+import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+
+/**
+ * @author Julien
+ * @time 2026/03/21 11:22
+ * @description 帖子控制器
+ */
+@Validated
+@RestController
+@RequiredArgsConstructor
+@RequestMapping("/post")
+public class PostController {
+    private final PostService postService;
+    @PostMapping("/publish")
+    public Response<?> post(@Validated @RequestBody PostReqVO postReqVO){
+        return postService.addPost(postReqVO);
+    }
+
+    @PostMapping("/list")
+    public Response<CursorPageRespVO<PostListVO>> getPostList(@Validated @RequestBody CursorPageReqVO cursorPageReqVO){
+        return postService.getPostList(cursorPageReqVO);
+    }
+
+    @GetMapping("/{id}")
+    public Response<PostDetailRespVO> getPostDetail(@PathVariable Long id){
+        return postService.getPostDetail(id);
+    }
+
+    @PostMapping("/update")
+    public Response<?> updatePost(@Validated @RequestBody PostUpdateReqVO postUpdateReqVO){
+        return postService.updatePost(postUpdateReqVO);
+    }
+
+    @DeleteMapping("/{id}")
+    public Response<?> deletePost(@PathVariable Long id){
+        return postService.deletePost(id);
+    }
+
+    @PostMapping("/{id}/like")
+    public Response<PostLikeRespVO> likePost(@Validated @NotNull @PathVariable Long id){
+        return postService.likePost(id);
+    }
+
+    @PostMapping("/batch")
+    public Response<List<PostListVO>> batchGetPostList(@RequestBody(required = false) List<Long> ids){
+        return postService.batchGetPostList(ids);
+    }
+
+    @GetMapping("/hot/board")
+    public Response<List<HotBoardItemVO>> getHotBoard(@Validated @RequestParam(defaultValue = "10") @Min(1) @Max(20) int limit){
+        return postService.getHotBoard(limit);
+    }
+}

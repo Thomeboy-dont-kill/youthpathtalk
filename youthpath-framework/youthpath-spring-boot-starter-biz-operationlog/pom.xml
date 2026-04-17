@@ -1,0 +1,28 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>com.neu.youthpathtalk</groupId>
+        <artifactId>youthpath-framework</artifactId>
+        <version>1.0-SNAPSHOT</version>
+    </parent>
+
+    <packaging>jar</packaging>
+    <version>1.0-SNAPSHOT</version>
+
+    <artifactId>youthpath-spring-boot-starter-biz-operationlog</artifactId>
+    <name>youthpath-spring-boot-starter-biz-operationlog</name>
+    <description>用于描述API的功能</description>
+
+    <dependencies>
+        <dependency>
+            <groupId>com.neu.youthpathtalk</groupId>
+            <artifactId>youthpath-common</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-aop</artifactId>
+        </dependency>
+    </dependencies>
+</project>
