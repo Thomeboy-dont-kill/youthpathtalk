@@ -14,6 +14,7 @@ public final class RedisKeyPrefix {
     //业务域
     public static final String USER="user";
     public static final String POST="post";
+    public static final String SEARCH="search";
 
     //功能类型
     public static final String VERIFY="verify";
@@ -21,8 +22,10 @@ public final class RedisKeyPrefix {
     public static final String LIKE="like";
     public static final String VIEW="view";
     public static final String HOT="hot";
+    public static final String LIMIT="limit";
 
     //标识
     public static final String LOCK = "lock";
     public static final String TEMP = "temp";
+    public static final String SLIDE = "slide";
 }

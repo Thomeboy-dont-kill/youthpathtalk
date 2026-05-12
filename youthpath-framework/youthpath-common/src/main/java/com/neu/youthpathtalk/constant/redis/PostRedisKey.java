@@ -87,8 +87,8 @@ public final class PostRedisKey {
     public static final TimeUnit POST_VIEW_HOURLY_TTL_UNIT = TimeUnit.HOURS;
     public static final long POST_VIEW_HOT_LOCK_TTL=5;
     public static final TimeUnit POST_VIEW_HOT_LOCK_TTL_UNIT = TimeUnit.SECONDS;
-    public static final long POST_VIEW_HOT_TTL=1;
-    public static final TimeUnit POST_VIEW_HOT_TTL_UNIT = TimeUnit.HOURS;
+    public static final long POST_VIEW_HOT_TTL=3600;
+    public static final TimeUnit POST_VIEW_HOT_TTL_UNIT = TimeUnit.SECONDS;
     public static final long POST_AUTHOR_TTL=1;
     public static final TimeUnit POST_AUTHOR_TTL_UNIT = TimeUnit.HOURS;
     public static final long POST_VIEW_HISTORY_TTL_SECONDS=30*24*3600;
