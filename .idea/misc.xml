@@ -12,11 +12,13 @@
         <option value="$PROJECT_DIR$/youthpathtalk-gateway/pom.xml" />
         <option value="$PROJECT_DIR$/youthpathtalk-post/youthpathtalk-post-biz/pom.xml" />
         <option value="$PROJECT_DIR$/youthpathtalk-count/youthpathtalk-count-biz/pom.xml" />
+        <option value="$PROJECT_DIR$/youthpathtalk-search/pom.xml" />
       </list>
     </option>
     <option name="ignoredFiles">
       <set>
         <option value="$PROJECT_DIR$/youthpath-framework/youthpath-spring-boot-starter-rpc-result-handler/pom.xml" />
+        <option value="$PROJECT_DIR$/youthpath-framework/youthpath-spring-boot-starter-stpinterface/pom.xml" />
       </set>
     </option>
   </component>

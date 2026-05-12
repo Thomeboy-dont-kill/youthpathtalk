@@ -18,7 +18,7 @@ public class FeignRequestInterceptor implements RequestInterceptor{
     @Override
     public void apply(RequestTemplate requestTemplate) {
         Long userId= LoginUserContextHolder.getUserId();
-        if (Objects.isNull(userId)){
+        if (!Objects.isNull(userId)){
             requestTemplate.header(GlobalConstans.USER_ID,userId.toString());
             log.info("## FeignRequestInterceptor,userId: {}被设置到请求头中",userId);
         }

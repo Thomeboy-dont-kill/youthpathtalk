@@ -25,7 +25,7 @@ public class PostRpcService {
     public List<PostListVO> batchGetPostList(List<Long> postIds){
         Response<List<PostListVO>> response=feignClient.batchGetPostList(postIds);
         if (Boolean.FALSE.equals(response.getIsSuccess())){
-            log.warn("{}:checkPhoneRegistered业务异常, errorCode: {}, errorMessage: {}", ApiConstants.SERVICE_NAME,response.getErrorCode(),response.getErrorMessage());
+            log.warn("{}:batchGetPostList业务异常, errorCode: {}, errorMessage: {}", ApiConstants.SERVICE_NAME,response.getErrorCode(),response.getErrorMessage());
             throw new BizException(response.getErrorCode(),response.getErrorMessage());
         }
         return response.getData();

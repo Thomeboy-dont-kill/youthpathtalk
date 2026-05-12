@@ -18,7 +18,7 @@ import java.time.LocalDateTime;
 public class CursorPageReqVO {
     private BoolEnum lastIsTop;
     private BoolEnum lastIsEssence;
-    private LocalDateTime lastUpdateTime;
+    private LocalDateTime lastCreateTime;
     private Long lastId;
     @NotNull(message = "分页大小不能为空")
     private PageSizeEnum size = PageSizeEnum.defaultSize();

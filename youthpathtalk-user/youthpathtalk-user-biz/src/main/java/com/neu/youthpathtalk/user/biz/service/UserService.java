@@ -19,6 +19,6 @@ public interface UserService {
     Response<LoginRepVO> getUserIdByPhone(GetUserIdByPhoneReqVO getUserIdByPhoneReqVO);
     Response<UserInfoRespVO> getUserInfo(Long userId);
     Response<List<BrowseHistoryVO>> getBrowseHistory();
-    Response<PageRespVO<PostListVO>> getLikeHistory(PageReqVO pageReqVO);
+    Response<PageRespVO<PostListVO>> getLikeHistory(int pageNo,int pageSize);
     Response<List<CreatorWeeklyRankRespVO>> getWeeklyRank(int limit);
 }

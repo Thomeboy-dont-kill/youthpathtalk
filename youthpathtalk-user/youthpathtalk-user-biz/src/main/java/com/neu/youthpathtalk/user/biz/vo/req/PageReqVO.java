@@ -11,13 +11,13 @@ import lombok.NoArgsConstructor;
  * @time 2026/04/07 21:21
  * @description
  */
-@Data
-@NoArgsConstructor
-public class PageReqVO {
-    @Min(1)
-    private Integer pageNo= PageConstants.DEFAULT_PAGE_NO;
-
-    @Min(1)
-    @Max(50)
-    private Integer pageSize=PageConstants.DEFAULT_PAGE_SIZE;
-}
+//@Data
+//@NoArgsConstructor
+//public class PageReqVO {
+//    @Min(1)
+//    private Integer pageNo= PageConstants.DEFAULT_PAGE_NO;
+//
+//    @Min(1)
+//    @Max(50)
+//    private Integer pageSize=PageConstants.DEFAULT_PAGE_SIZE;
+//}

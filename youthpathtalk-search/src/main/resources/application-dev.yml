@@ -1,0 +1,17 @@
+spring:
+  cloud:
+    nacos:
+      server-addr: localhost:8848
+  elasticsearch:
+    uris: http://localhost:9200
+
+canal:
+  host: 127.0.0.1
+  port: 11111
+  destination: example
+  username:
+  password:
+  subscribe: post_db\.t_post
+
+  batch-size: 100
+  get-timeout: 5

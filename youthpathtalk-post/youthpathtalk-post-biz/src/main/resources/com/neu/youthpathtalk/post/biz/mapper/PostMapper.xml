@@ -16,7 +16,7 @@
         SELECT
             user_id, username, user_avatar, university_name,
             board_type, title, content, view_count, like_count,
-            comment_count, favorite_count, update_time
+            comment_count, favorite_count, create_time, update_time
         FROM t_post
         WHERE id = #{id} AND status = 1
     </select>
@@ -42,20 +42,18 @@
         favorite_count,
         is_top,
         is_essence,
-        update_time
+        create_time
         FROM t_post
         WHERE status = 1
-        <if test="cursor.lastUpdateTime != null and cursor.lastId != null
-              and cursor.lastIsTop != null and cursor.lastIsEssence != null">
+        <if test="cursor.lastId != null and cursor.lastIsTop != null and cursor.lastIsEssence != null">
             AND (
             (is_top &lt; #{cursor.lastIsTop})
             OR (is_top = #{cursor.lastIsTop} AND is_essence &lt; #{cursor.lastIsEssence})
             OR (is_top = #{cursor.lastIsTop} AND is_essence = #{cursor.lastIsEssence}
-            AND (update_time &lt; #{cursor.lastUpdateTime}
-            OR (update_time = #{cursor.lastUpdateTime} AND id &lt; #{cursor.lastId})))
+            AND id &lt; #{cursor.lastId})
             )
         </if>
-        ORDER BY is_top DESC, is_essence DESC, update_time DESC, id DESC
+        ORDER BY is_top DESC, is_essence DESC, id DESC
         LIMIT #{limit}
     </select>
     <select id="selectPostListByIds" resultType="com.neu.youthpathtalk.post.biz.vo.resp.PostListVO">
@@ -74,7 +72,7 @@
             favorite_count,
             is_top,
             is_essence,
-            update_time
+            create_time
         FROM t_post
         WHERE status = 1
         AND id IN
@@ -219,6 +217,7 @@
             <if test="content != null and content.trim() != ''">
                 content = #{content},
             </if>
+            update_time = NOW(),
         </set>
         WHERE id = #{id}
         AND status = 1

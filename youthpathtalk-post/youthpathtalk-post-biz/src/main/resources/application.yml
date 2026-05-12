@@ -36,9 +36,13 @@ hotboard:
     comment: 3.0
     favorite: 4.0
 
+# Sa-Token 配置
+sa-token:
+  # token 名称->不仅影响 HTTP 请求头（如 Authorization 头），还影响 Redis 中存储的键前缀。
+  token-name: Authorization
+
 spring:
   application:
-    name:
-      youthpathtalk-post-service
+    name: youthpathtalk-post-service
   profiles:
     active: dev

@@ -20,6 +20,7 @@ public enum BizResponseErrorCode implements BaseException {
 
     AUTH_LOGIN_FAILED("USER-20005","用户名或密码错误"),
     AUTH_NOT_LOGIN("USER-20006","用户未登录"),
+    AUTH_NOT_PERMISSION("USER-20007","无权限"),
 
     ;
 

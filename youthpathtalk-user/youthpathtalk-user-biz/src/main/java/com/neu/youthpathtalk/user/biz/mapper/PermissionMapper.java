@@ -12,6 +12,6 @@ import java.util.List;
  */
 @Mapper
 public interface PermissionMapper {
-    @Select("SELECT p.path FROM t_permission p INNER JOIN t_role_permission trp on p.id = trp.permission_id WHERE trp.role_id=#{roleId}")
-    List<String> selectPathsByRoleId(Long roleId);
+    @Select("SELECT p.permission_code FROM t_permission p INNER JOIN t_role_permission trp on p.id = trp.permission_id WHERE trp.role_id=#{roleId}")
+    List<String> selectPermissionsByRoleId(Long roleId);
 }

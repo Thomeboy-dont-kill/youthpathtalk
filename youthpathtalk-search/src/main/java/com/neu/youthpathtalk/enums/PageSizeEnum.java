@@ -1,0 +1,54 @@
+package com.neu.youthpathtalk.enums;
+
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonValue;
+import com.google.common.base.Preconditions;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+
+import java.util.Arrays;
+import java.util.Optional;
+
+/**
+ * @author Julien
+ * @time 2026/03/23 13:00
+ * @description 分页大小枚举，限定可选值
+ */
+@Getter
+@RequiredArgsConstructor
+public enum PageSizeEnum {
+    SIZE_10(10, "10条/页"),
+    SIZE_20(20, "20条/页"),
+    SIZE_30(30, "30条/页"),
+    SIZE_50(50, "50条/页");
+
+    private final int size;
+    private final String description;
+
+    /**
+     * 获取枚举值对应的代码（用于存储或查询）
+     */
+    @JsonValue
+    public int getSize() {
+        return size;
+    }
+
+    /**
+     * 根据代码反序列化枚举
+     */
+    @JsonCreator
+    public static PageSizeEnum fromCode(int size) {
+        Optional<PageSizeEnum> optional = Arrays.stream(values())
+                .filter(e -> e.size == size)
+                .findFirst();
+        Preconditions.checkArgument(optional.isPresent(),"无效的分页大小: " + size + "，允许的值: 10,20,30,50");
+        return optional.get();
+    }
+
+    /**
+     * 获取默认值
+     */
+    public static PageSizeEnum defaultSize() {
+        return SIZE_10;
+    }
+}

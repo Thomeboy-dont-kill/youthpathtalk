@@ -147,7 +147,7 @@ public class PostServiceImpl implements PostService {
     }
     private boolean isFirstPage(CursorPageReqVO cursorPageReqVO) {
         // 关键：必须所有游标字段都为null才是第一页
-        return cursorPageReqVO.getLastUpdateTime() == null
+        return cursorPageReqVO.getLastCreateTime() == null
                 && cursorPageReqVO.getLastId() == null
                 && cursorPageReqVO.getLastIsTop() == null
                 && cursorPageReqVO.getLastIsEssence() == null;
@@ -155,7 +155,7 @@ public class PostServiceImpl implements PostService {
     private CursorPageRespVO<PostListVO> queryByCursor(CursorPageReqVO cursorPageReqVO){
         Preconditions.checkArgument(!Objects.isNull(cursorPageReqVO.getLastIsTop()), "lastIsTop 不能为空");
         Preconditions.checkArgument(!Objects.isNull(cursorPageReqVO.getLastIsEssence()), "lastIsEssence 不能为空");
-        Preconditions.checkArgument(!Objects.isNull(cursorPageReqVO.getLastUpdateTime()), "lastUpdateTime 不能为空");
+        Preconditions.checkArgument(!Objects.isNull(cursorPageReqVO.getLastCreateTime()), "lastUpdateTime 不能为空");
         Preconditions.checkArgument(!Objects.isNull(cursorPageReqVO.getLastId()), "lastId 不能为空");
         CursorPageRespVO<PostListVO> dbResult=new CursorPageRespVO<>();
         int size=cursorPageReqVO.getSize().getCode();
@@ -660,7 +660,9 @@ public class PostServiceImpl implements PostService {
         if (Objects.isNull(ids)||ids.isEmpty()){
             return Response.ok(Collections.emptyList());
         }
-        return Response.ok(postMapper.selectPostListByIds(ids));
+        List<PostListVO> list = postMapper.selectPostListByIds(ids);
+        list.forEach(vo -> vo.setBoardTypeName(BoardType.getBoardTypeName(vo.getBoardType())));
+        return Response.ok(list);
     }
 
     @Override

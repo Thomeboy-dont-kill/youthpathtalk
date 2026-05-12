@@ -8,10 +8,15 @@ idempotent:
   batch-size: 1000             # 每次删除的最大记录数
   cron: "0 0 3 * * ?"          # 每天凌晨3点执行
 
+# Sa-Token 配置
+sa-token:
+ # token 名称->不仅影响 HTTP 请求头（如 Authorization 头），还影响 Redis 中存储的键前缀。
+ token-name: Authorization
+
+
 spring:
  application:
-  name:
-   youthpathtalk-user-service
+  name: youthpathtalk-user-service
  profiles:
   active: dev
 

@@ -15,7 +15,7 @@ import java.lang.annotation.Target;
  */
 @Target({ElementType.FIELD,ElementType.PARAMETER})
 @Retention(RetentionPolicy.RUNTIME)
-@Constraint(validatedBy = PhoneNumberValidator.class)
+@Constraint(validatedBy = PasswordValidator.class)
 public @interface Password {
     String message() default "密码，8-20位，必须包含大小写字母、数字和特殊字符(@$!%*?&)";
     Class<?>[] groups() default {};

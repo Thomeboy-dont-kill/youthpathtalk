@@ -2,7 +2,9 @@ package com.neu.youthpathtalk.gateway.config;
 
 import cn.dev33.satoken.context.SaHolder;
 import cn.dev33.satoken.reactor.filter.SaReactorFilter;
+import cn.dev33.satoken.router.SaRouter;
 import cn.dev33.satoken.stp.StpUtil;
+import com.alibaba.nacos.shaded.io.grpc.netty.shaded.io.netty.handler.codec.http.HttpMethod;
 import com.neu.youthpathtalk.enums.CommonResponseErrorCode;
 import com.neu.youthpathtalk.gateway.enums.BizResponseErrorCode;
 import com.neu.youthpathtalk.response.Response;
@@ -15,32 +17,40 @@ import cn.dev33.satoken.exception.NotLoginException;
  * @time 2026/03/20 16:22
  * @description 基础登录校验
  */
-@Configuration
-public class SaConigure {
-    @Bean
-    public SaReactorFilter saReactorFilter(){
-        return new SaReactorFilter()
-                .addInclude("/**")
-                .addExclude("/auth/**","/code/**")
-                .setAuth(obj-> StpUtil.checkLogin())
-                .setError(e -> {
-                    // 获取响应对象
-                    SaHolder.getResponse()
-                            .setHeader("Content-Type", "application/json;charset=UTF-8");
-
-                    if (e instanceof NotLoginException) {
-                        // 未登录异常
-                        SaHolder.getResponse().setStatus(401);
-                        return JsonUtils.toJsonString(
-                                Response.fail(BizResponseErrorCode.USER_NOT_LOGIN)
-                        );
-                    } else {
-                        // 其他异常
-                        SaHolder.getResponse().setStatus(500);
-                        return JsonUtils.toJsonString(
-                                Response.fail(CommonResponseErrorCode.SYSTEM_ERROR)
-                        );
-                    }
-                });
-    }
-}
+//@Configuration
+//public class SaConigure {
+//    @Bean
+//    public SaReactorFilter saReactorFilter(){
+//        return new SaReactorFilter()
+//                .addInclude("/**")
+//                //限制范围太大
+//                .addExclude("/auth/**","/code/**","")
+//                .setAuth(obj-> {
+//                    // 判断当前请求方法是否为 OPTIONS
+//                    if (SaHolder.getRequest().getMethod().equals(HttpMethod.OPTIONS.name())) {
+//                        // 直接返回，不进行后续鉴权
+//                        return;
+//                    }
+//                    StpUtil.checkLogin();
+//                })
+//                .setError(e -> {
+//                    // 获取响应对象
+//                    SaHolder.getResponse()
+//                            .setHeader("Content-Type", "application/json;charset=UTF-8");
+//
+//                    if (e instanceof NotLoginException) {
+//                        // 未登录异常
+//                        SaHolder.getResponse().setStatus(401);
+//                        return JsonUtils.toJsonString(
+//                                Response.fail(BizResponseErrorCode.USER_NOT_LOGIN)
+//                        );
+//                    } else {
+//                        // 其他异常
+//                        SaHolder.getResponse().setStatus(500);
+//                        return JsonUtils.toJsonString(
+//                                Response.fail(CommonResponseErrorCode.SYSTEM_ERROR)
+//                        );
+//                    }
+//                });
+//    }
+//}

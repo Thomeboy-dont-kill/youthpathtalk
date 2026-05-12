@@ -1,7 +1,10 @@
 package com.neu.youthpathtalk.post.biz.exception;
 
+import cn.dev33.satoken.exception.NotLoginException;
+import cn.dev33.satoken.exception.NotPermissionException;
 import com.neu.youthpathtalk.enums.CommonResponseErrorCode;
 import com.neu.youthpathtalk.exception.BizException;
+import com.neu.youthpathtalk.post.biz.enums.BizResponseErrorCode;
 import com.neu.youthpathtalk.response.Response;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
@@ -87,6 +90,30 @@ public class GlobalExceptionHandler {
         String errorMessage=e.getMessage();
         log.warn("{} request error, errorCode: {}, errorMessage: {}", request.getRequestURI(), errorCode, errorMessage);
         return Response.fail(errorCode,errorMessage);
+    }
+
+    /**
+     * 捕获登录校验异常
+     */
+    @ExceptionHandler(NotLoginException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public Response<?> handleNotLoginException(HttpServletRequest request,NotLoginException e){
+        String errorCode= BizResponseErrorCode.AUTH_NOT_LOGIN.getErrorCode();
+        String errorMessage=BizResponseErrorCode.AUTH_NOT_LOGIN.getErrorMessage();
+        log.warn("{} request error, errorCode: {}, errorMessage: {}", request.getRequestURI(),errorCode,errorMessage, e);
+        return Response.fail(BizResponseErrorCode.AUTH_NOT_LOGIN);
+    }
+
+    /**
+     * 捕获权限校验异常
+     */
+    @ExceptionHandler(NotPermissionException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public Response<?> handleNotPermissionException(HttpServletRequest request,NotPermissionException e){
+        String errorCode= BizResponseErrorCode.AUTH_NOT_PERMISSION.getErrorCode();
+        String errorMessage=BizResponseErrorCode.AUTH_NOT_PERMISSION.getErrorMessage();
+        log.warn("{} request error, errorCode: {}, errorMessage: {}", request.getRequestURI(),errorCode,errorMessage, e);
+        return Response.fail(BizResponseErrorCode.AUTH_NOT_PERMISSION);
     }
 
     /**

@@ -39,6 +39,8 @@ public class PostDetailRespVO {
 
     private Integer favoriteCount;
 
+    private LocalDateTime createTime;
+
     private LocalDateTime updateTime;
 
     private String content;

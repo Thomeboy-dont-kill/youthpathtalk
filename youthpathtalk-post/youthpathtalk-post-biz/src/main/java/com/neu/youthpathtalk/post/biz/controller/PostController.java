@@ -1,5 +1,7 @@
 package com.neu.youthpathtalk.post.biz.controller;
 
+import cn.dev33.satoken.annotation.SaCheckLogin;
+import cn.dev33.satoken.annotation.SaCheckPermission;
 import com.neu.youthpathtalk.post.biz.service.PostService;
 import com.neu.youthpathtalk.post.biz.vo.req.CursorPageReqVO;
 import com.neu.youthpathtalk.post.biz.vo.req.PostReqVO;
@@ -26,6 +28,8 @@ import java.util.List;
 @RequestMapping("/post")
 public class PostController {
     private final PostService postService;
+    @SaCheckLogin
+    @SaCheckPermission("post:publish")
     @PostMapping("/publish")
     public Response<?> post(@Validated @RequestBody PostReqVO postReqVO){
         return postService.addPost(postReqVO);
@@ -41,18 +45,24 @@ public class PostController {
         return postService.getPostDetail(id);
     }
 
+    @SaCheckLogin
+    @SaCheckPermission("post:update")
     @PostMapping("/update")
     public Response<?> updatePost(@Validated @RequestBody PostUpdateReqVO postUpdateReqVO){
         return postService.updatePost(postUpdateReqVO);
     }
 
+    @SaCheckLogin
+    @SaCheckPermission("post:delete")
     @DeleteMapping("/{id}")
     public Response<?> deletePost(@PathVariable Long id){
         return postService.deletePost(id);
     }
 
+    @SaCheckLogin
+    @SaCheckPermission("post:like")
     @PostMapping("/{id}/like")
-    public Response<PostLikeRespVO> likePost(@Validated @NotNull @PathVariable Long id){
+    public Response<PostLikeRespVO> likePost(@NotNull @PathVariable Long id){
         return postService.likePost(id);
     }
 

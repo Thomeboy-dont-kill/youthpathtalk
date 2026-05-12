@@ -95,7 +95,7 @@ public class UserServiceImpl implements UserService {
         } catch (DuplicateKeyException e) {
             throw new BizException(BizResponseErrorCode.USER_ROLE_INIT_ERROR);
         }
-        List<String> paths=permissionMapper.selectPathsByRoleId(UserRoleConstants.REGULAR_USER_ROLE_ID);
+        List<String> paths=permissionMapper.selectPermissionsByRoleId(UserRoleConstants.REGULAR_USER_ROLE_ID);
         LoginRepVO loginRepVO = new LoginRepVO();
         loginRepVO.setUserId(userId);
         loginRepVO.setPaths(paths);
@@ -123,7 +123,7 @@ public class UserServiceImpl implements UserService {
         }
         Long userId=userInfoDTO.getId();
         Long roleId=userRoleMapper.selectRoleIdByUserId(userId);
-        List<String> paths=permissionMapper.selectPathsByRoleId(roleId);
+        List<String> paths=permissionMapper.selectPermissionsByRoleId(roleId);
         LoginRepVO loginRepVO = new LoginRepVO();
         loginRepVO.setUserId(userId);
         loginRepVO.setPaths(paths);
@@ -137,7 +137,7 @@ public class UserServiceImpl implements UserService {
             throw new BizException(BizResponseErrorCode.USER_STATUS_ABNORMAL);
         }
         Long roleId=userRoleMapper.selectRoleIdByUserId(userId);
-        List<String> paths=permissionMapper.selectPathsByRoleId(roleId);
+        List<String> paths=permissionMapper.selectPermissionsByRoleId(roleId);
         LoginRepVO loginRepVO = new LoginRepVO();
         loginRepVO.setUserId(userId);
         loginRepVO.setPaths(paths);
@@ -163,7 +163,7 @@ public class UserServiceImpl implements UserService {
     public Response<List<BrowseHistoryVO>> getBrowseHistory() {
         Long userId= LoginUserContextHolder.getUserId();
         if (userId==null){
-            throw new BizException(BizResponseErrorCode.USER_STATUS_ABNORMAL);
+            throw new BizException(BizResponseErrorCode.AUTH_NOT_LOGIN);
         }
         String viewHistoryKey= UserRedisKey.viewHistory(userId);
         Set<ZSetOperations.TypedTuple<String>> tuples;
@@ -224,7 +224,7 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public Response<PageRespVO<PostListVO>> getLikeHistory(PageReqVO pageReqVO) {
+    public Response<PageRespVO<PostListVO>> getLikeHistory(int pageNo,int pageSize) {
         Long userId=LoginUserContextHolder.getUserId();
         if (Objects.isNull(userId)){
             throw new BizException(BizResponseErrorCode.AUTH_LOGIN_FAILED);
@@ -237,8 +237,6 @@ public class UserServiceImpl implements UserService {
             log.error("获取用户维度点赞历史ZSet集合大小失败",e);
             throw new BizException(CommonResponseErrorCode.SYSTEM_ERROR);
         }
-        int pageNo=pageReqVO.getPageNo();
-        int pageSize=pageReqVO.getPageSize();
         if (total==null||total==0){
             return Response.ok(new PageRespVO<>(0L,
                     pageNo, pageSize, Collections.emptyList()));

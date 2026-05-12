@@ -31,5 +31,5 @@ public class PostListVO {
     private Integer favoriteCount;
     private Integer isTop;
     private Integer isEssence;
-    private LocalDateTime updateTime;
+    private LocalDateTime createTime;
 }

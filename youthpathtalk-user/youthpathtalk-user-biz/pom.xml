@@ -102,6 +102,16 @@
             <groupId>com.neu.youthpathtalk</groupId>
             <artifactId>youthpath-spring-boot-starter-biz-context</artifactId>
         </dependency>
+
+        <dependency>
+            <groupId>cn.dev33</groupId>
+            <artifactId>sa-token-spring-boot3-starter</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>cn.dev33</groupId>
+            <artifactId>sa-token-redis-jackson</artifactId>
+        </dependency>
     </dependencies>
 
     <build>
