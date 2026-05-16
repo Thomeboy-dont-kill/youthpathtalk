@@ -27,9 +27,4 @@ public class FieldMeta {
      * 值转换器
      */
     private Function<String, Object> converter;
-
-    /**
-     * 文档setter
-     */
-    private BiConsumer<PostDocument, Object> setter;
 }

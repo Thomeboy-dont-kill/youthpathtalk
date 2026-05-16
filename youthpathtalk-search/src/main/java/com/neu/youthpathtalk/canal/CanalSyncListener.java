@@ -9,6 +9,9 @@ import com.neu.youthpathtalk.config.CanalProperties;
 import com.neu.youthpathtalk.constants.CanalConstants;
 import com.neu.youthpathtalk.constants.SearchConstants;
 import com.neu.youthpathtalk.document.PostDocument;
+import com.neu.youthpathtalk.enums.SearchSyncOperation;
+import com.neu.youthpathtalk.message.PostSearchSyncMessage;
+import com.neu.youthpathtalk.producer.SearchSyncProducer;
 import com.neu.youthpathtalk.repository.PostRepository;
 import com.neu.youthpathtalk.util.DateUtils;
 import jakarta.annotation.PostConstruct;
@@ -17,9 +20,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.jsoup.Jsoup;
 import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
-import org.springframework.data.elasticsearch.core.document.Document;
-import org.springframework.data.elasticsearch.core.mapping.IndexCoordinates;
-import org.springframework.data.elasticsearch.core.query.UpdateQuery;
 import org.springframework.stereotype.Component;
 import com.neu.youthpathtalk.domain.FieldMeta;
 
@@ -42,6 +42,7 @@ public class CanalSyncListener {
     private final ElasticsearchOperations elasticsearchOperations;
     private final PostRepository postRepository;
     private final CanalProperties canalProperties;
+    private final SearchSyncProducer searchSyncProducer;
     private ExecutorService executor;
 
     /**
@@ -55,20 +56,14 @@ public class CanalSyncListener {
                             new FieldMeta(
                                     "id",
                                     null,
-                                    Long::parseLong,
-                                    (doc, v) -> doc.setId((Long) v)
+                                    Long::parseLong
                             )
                     ),
 
                     Map.entry("title",
                             new FieldMeta("title",
                                     "titleSuggest",
-                                    v -> v,
-                                    (doc, v) -> {
-                                        String title = (String) v;
-                                        doc.setTitle(title);
-                                        doc.setTitleSuggest(title);
-                                    })
+                                    v -> v)
                     ),
 
                     Map.entry(
@@ -76,8 +71,7 @@ public class CanalSyncListener {
                             new FieldMeta(
                                     "content",
                                     null,
-                                    CanalSyncListener::cleanContent,
-                                    (doc, v) -> doc.setContent((String) v)
+                                    CanalSyncListener::cleanContent
                             )
                     ),
 
@@ -86,8 +80,7 @@ public class CanalSyncListener {
                             new FieldMeta(
                                     "boardType",
                                     null,
-                                    Integer::parseInt,
-                                    (doc, v) -> doc.setBoardType((Integer) v)
+                                    Integer::parseInt
                             )
                     ),
 
@@ -96,8 +89,7 @@ public class CanalSyncListener {
                             new FieldMeta(
                                     "userId",
                                     null,
-                                    Long::parseLong,
-                                    (doc, v) -> doc.setUserId((Long) v)
+                                    Long::parseLong
                             )
                     ),
 
@@ -106,8 +98,7 @@ public class CanalSyncListener {
                             new FieldMeta(
                                     "likeCount",
                                     null,
-                                    Long::parseLong,
-                                    (doc, v) -> doc.setLikeCount((Long) v)
+                                    Long::parseLong
                             )
                     ),
 
@@ -116,8 +107,7 @@ public class CanalSyncListener {
                             new FieldMeta(
                                     "commentCount",
                                     null,
-                                    Long::parseLong,
-                                    (doc, v) -> doc.setCommentCount((Long) v)
+                                    Long::parseLong
                             )
                     ),
 
@@ -126,8 +116,7 @@ public class CanalSyncListener {
                             new FieldMeta(
                                     "favoriteCount",
                                     null,
-                                    Long::parseLong,
-                                    (doc, v) -> doc.setFavoriteCount((Long) v)
+                                    Long::parseLong
                             )
                     ),
 
@@ -136,8 +125,7 @@ public class CanalSyncListener {
                             new FieldMeta(
                                     "viewCount",
                                     null,
-                                    Long::parseLong,
-                                    (doc, v) -> doc.setViewCount((Long) v)
+                                    Long::parseLong
                             )
                     ),
 
@@ -146,8 +134,7 @@ public class CanalSyncListener {
                             new FieldMeta(
                                     "createTime",
                                     null,
-                                    DateUtils::parseToMillis,
-                                    (doc, v) -> doc.setCreateTime((Long) v)
+                                    DateUtils::parseToMillis
                             )
                     )
             );
@@ -267,9 +254,13 @@ public class CanalSyncListener {
                 for (CanalEntry.RowData rowData:rowChange.getRowDatasList()){
                     Long postId=null;
                     if (rowChange.getEventType()==CanalEntry.EventType.INSERT){
-                        PostDocument doc=buildPostDocument(rowData.getAfterColumnsList());
-                        postRepository.save(doc);
-                        log.info("INSERT 同步 ES 成功, postId={}", doc.getId());
+                        Map<String,Object> doc = buildEsDocument(rowData.getAfterColumnsList());
+                        PostSearchSyncMessage msg = PostSearchSyncMessage.builder()
+                                .operation(SearchSyncOperation.INSERT)
+                                .postId((Long) doc.get("id"))
+                                .data(doc)
+                                .build();
+                        searchSyncProducer.send(msg);
                     }else if (rowChange.getEventType()==CanalEntry.EventType.UPDATE){
                         updatePostDocument(rowData.getAfterColumnsList());
                     }else if (rowChange.getEventType()== CanalEntry.EventType.DELETE){
@@ -280,8 +271,12 @@ public class CanalSyncListener {
                             }
                         }
                         if (Objects.nonNull(postId)){
-                            log.info("DELETE 同步 ES, postId={}", postId);
-                            postRepository.deleteById(postId);
+                            PostSearchSyncMessage msg = PostSearchSyncMessage.builder()
+                                    .operation(SearchSyncOperation.DELETE)
+                                    .postId(postId)
+                                    .build();
+
+                            searchSyncProducer.send(msg);
                         }
                     }
                 }
@@ -289,18 +284,30 @@ public class CanalSyncListener {
         }
     }
 
-    private PostDocument buildPostDocument(List<CanalEntry.Column> columns){
-        PostDocument doc = new PostDocument();
+    private Map<String,Object> buildEsDocument(List<CanalEntry.Column> columns){
+        Map<String,Object> doc = new LinkedHashMap<>();
+
         for (CanalEntry.Column column : columns) {
+
             String name = column.getName();
             String value = column.getValue();
+
             if (value == null) {
                 continue;
             }
-            FieldMeta meta=FIELD_META_MAP.get(name);
-            if (Objects.nonNull(meta)){
-                Object converted=meta.getConverter().apply(value);
-                meta.getSetter().accept(doc,converted);
+
+            FieldMeta meta = FIELD_META_MAP.get(name);
+
+            if (Objects.nonNull(meta)) {
+
+                Object converted = meta.getConverter().apply(value);
+
+                doc.put(meta.getEsField(), converted);
+
+                // title -> titleSuggest
+                if (meta.getExtraEsField() != null) {
+                    doc.put(meta.getExtraEsField(), converted);
+                }
             }
         }
 
@@ -320,10 +327,11 @@ public class CanalSyncListener {
             if (!column.getUpdated()){
                 continue;
             }
+            //软删除不删文档
             FieldMeta meta=FIELD_META_MAP.get(name);
             if (Objects.nonNull(meta)){
                 //允许更新为null值是为了扩展，但是要注意一些字段“不应该”为null值
-                Object converted=Objects.isNull(value)?null:meta.getConverter().apply(value);
+                Object converted=convertValue(meta,value);
                 updateFields.put(meta.getEsField(),converted);
                 if (meta.getExtraEsField() != null) {
                     updateFields.put(meta.getExtraEsField(), converted);
@@ -334,16 +342,22 @@ public class CanalSyncListener {
             log.warn("UPDATE 跳过: postId={}, updateFields为空", postId);
             return;
         }
-        UpdateQuery updateQuery=
-                UpdateQuery.builder(String.valueOf(postId))
-                        .withDocument(
-                                Document.from(updateFields)
-                        ).build();
-        elasticsearchOperations.update(
-                updateQuery,
-                IndexCoordinates.of("post_index")
-        );
-        log.info("UPDATE 部分更新 ES 成功, postId={}, 变更字段={}", postId, updateFields.keySet());
+        PostSearchSyncMessage message = PostSearchSyncMessage.builder()
+                .operation(SearchSyncOperation.UPDATE)
+                .postId(postId)
+                .data(updateFields)
+                .build();
+
+        searchSyncProducer.send(message);
+    }
+
+    private Object convertValue(FieldMeta meta,String value){
+
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+
+        return meta.getConverter().apply(value);
     }
 
     private static String cleanContent(String content){
