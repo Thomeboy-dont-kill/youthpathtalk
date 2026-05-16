@@ -1,16 +1,32 @@
-target/
-!.mvn/wrapper/maven-wrapper.jar
-!**/src/main/**/target/
-!**/src/test/**/target/
+# ========== 之前 .idea/ 下的规则 ==========
+# Default ignored files (IntelliJ IDEA)
+/shelf/
+/workspace.xml
+# Editor-based HTTP Client requests
+/httpRequests/
+# Datasource local storage ignored files
+/dataSources/
+/dataSources.local.xml
 
+# ========== 编译产物 ==========
+target/
+*.class
+*.jar
+*.war
+
+# ========== Maven Wrapper（保留 jar，忽略其他） ==========
+!.mvn/wrapper/maven-wrapper.jar
+.mvn/
+mvnw
+mvnw.cmd
+
+# ========== IDE 配置 ==========
 ### IntelliJ IDEA ###
-.idea/modules.xml
-.idea/jarRepositories.xml
-.idea/compiler.xml
-.idea/libraries/
-*.iws
+.idea/
 *.iml
+*.iws
 *.ipr
+out/
 
 ### Eclipse ###
 .apt_generated
@@ -34,5 +50,19 @@ build/
 ### VS Code ###
 .vscode/
 
-### Mac OS ###
+# ========== 日志与临时文件 ==========
+*.log
+*.tmp
+
+# ========== 敏感配置文件（非常重要！） ==========
+application.yml
+application-dev.yml
+.env
+
+# ========== HTTP Requests ==========
+*.http
+generated-requests.http
+
+# ========== OS generated files ==========
 .DS_Store
+Thumbs.db
