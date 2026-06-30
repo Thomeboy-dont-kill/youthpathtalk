@@ -1,0 +1,398 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.neu.youthpathtalk.post.biz.mapper.CommentMapper">
+    <delete id="deleteByPostIds">
+        DELETE FROM t_comment
+        WHERE post_id IN
+        <foreach collection="postIds" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </delete>
+
+    <insert id="insert">
+
+        insert into t_comment
+        (
+            id,
+            post_id,
+            user_id,
+            user_name,
+            user_avatar,
+            university_id,
+            university_name,
+            root_id,
+            parent_id,
+            reply_user_id,
+            reply_user_name,
+            content,
+            plain_text
+
+        )
+        values
+            (
+                #{id},
+                #{postId},
+                #{userId},
+                #{userName},
+                #{userAvatar},
+                #{universityId},
+                #{universityName},
+                #{rootId},
+                #{parentId},
+                #{replyUserId},
+                #{replyUserName},
+                #{content},
+                #{plainText}
+            )
+
+    </insert>
+
+    <update id="updateReplyCountById">
+        update t_comment
+        set reply_count = reply_count + #{delta}
+        where id = #{id}
+--           仅顶级评论维护
+          and root_id is null
+          and status = 1
+--         不防负数，便于发现问题
+    </update>
+
+    <select id="selectReplyTarget"
+            resultType="com.neu.youthpathtalk.post.biz.dto.ReplyTargetDTO">
+        select
+            post_id,
+            user_id,
+            user_name,
+            root_id,
+            plain_text
+        from t_comment
+        where id = #{parentId}
+          and status = 1
+    </select>
+
+    <select id="selectHotScoreInfoById"
+            resultType="com.neu.youthpathtalk.post.biz.dto.CommentHotScoreInfoDTO">
+        select
+            like_count,
+            reply_count,
+            create_time
+        from t_comment
+        where id = #{id}
+--           给回复重算复用就不用
+--           and root_id is null
+          and status = 1
+    </select>
+
+    <update id="updateHotScore">
+        update t_comment
+        set hot_score = #{hotScore}
+        where id = #{id}
+          and status = 1
+    </update>
+    
+    <select id="selectForRecalculate"
+            resultType="com.neu.youthpathtalk.post.biz.dto.CommentHotScoreRecalculateDTO">
+        select
+            id,
+            post_id,
+            like_count,
+            reply_count,
+            create_time
+        from t_comment
+        <!--
+        当前只维护根评论热度，
+        如果以后回复评论也参与热度排序，
+        这里需要调整查询条件
+        -->
+        where status = 1
+          and root_id is null
+          and create_time >= #{startTime}
+        <if test="cursor != null
+              and cursor.createTime != null
+              and cursor.id != null">
+
+            and (
+            create_time &lt; #{cursor.createTime}
+            or (
+            create_time = #{cursor.createTime}
+            and id &lt; #{cursor.id}
+            )
+            )
+
+        </if>
+        order by create_time desc,id desc
+            limit #{limit}
+    </select>
+
+    <update id="batchUpdateHotScore">
+
+        update t_comment
+
+        <trim prefix="set" suffixOverrides=",">
+
+            hot_score =
+            case id
+
+            <foreach collection="list"
+                     item="item">
+
+                when #{item.id}
+                then #{item.hotScore}
+
+            </foreach>
+
+            end
+
+        </trim>
+
+        where id in
+
+        <foreach collection="list"
+                 item="item"
+                 open="("
+                 separator=","
+                 close=")">
+
+            #{item.id}
+
+        </foreach>
+
+    </update>
+
+    <select id="selectRootComments"
+            resultType="com.neu.youthpathtalk.post.biz.vo.resp.CommentRespVO">
+
+        select
+            id,
+            user_id,
+            user_name,
+            user_avatar,
+            university_id,
+            university_name,
+            content,
+            like_count,
+            reply_count,
+            create_time,
+            hot_score
+        from t_comment
+        where post_id = #{postId}
+            and root_id is null
+            and status = 1
+        <if test="cursor != null">
+
+            and (
+                hot_score &lt; #{cursor.hotScore}
+            or (
+                hot_score = #{cursor.hotScore}
+                    and id &lt; #{cursor.id}
+            )
+            )
+
+        </if>
+        order by hot_score desc,
+            id desc
+        limit #{limit}
+
+    </select>
+
+    <select id="selectReplyList"
+            resultType="com.neu.youthpathtalk.post.biz.vo.resp.ReplyCommentRespVO">
+
+        select
+            id,
+            user_id,
+            user_name,
+            user_avatar,
+            university_id,
+            university_name,
+            parent_id,
+            reply_user_id,
+            reply_user_name,
+            content,
+            like_count,
+            status,
+            create_time
+        from t_comment
+        where root_id = #{rootId}
+
+        <if test="cursor != null">
+
+            and (
+                create_time &lt; #{cursor.createTime}
+            or (
+                create_time = #{cursor.createTime}
+                    and id &lt; #{cursor.id}
+            )
+            )
+
+        </if>
+
+        order by create_time desc,
+            id desc
+
+        limit #{limit}
+
+    </select>
+
+    <select id="selectConversation"
+            resultType="com.neu.youthpathtalk.post.biz.vo.resp.ReplyCommentRespVO">
+
+        WITH RECURSIVE comment_tree AS (
+
+        SELECT
+            id,
+            user_id,
+            user_name,
+            user_avatar,
+            university_id,
+            university_name,
+            root_id,
+            parent_id,
+            reply_user_id,
+            reply_user_name,
+            content,
+            like_count,
+            status,
+            create_time,
+            0 AS depth
+
+        FROM t_comment
+        WHERE id = #{startId}
+
+        UNION ALL
+
+        SELECT
+            c.id,
+            c.user_id,
+            c.user_name,
+            c.user_avatar,
+            c.university_id,
+            c.university_name,
+            c.root_id,
+            c.parent_id,
+            c.reply_user_id,
+            c.reply_user_name,
+            c.content,
+            c.like_count,
+            c.status,
+            c.create_time,
+            ct.depth + 1
+
+        FROM comment_tree ct
+        JOIN t_comment c
+        ON ct.id = c.parent_id
+        WHERE ct.depth &lt; #{maxDepth}
+
+        )
+
+        SELECT
+            id,
+            user_id,
+            user_name,
+            user_avatar,
+            university_id,
+            university_name,
+            root_id,
+            parent_id,
+            reply_user_id,
+            reply_user_name,
+            content,
+            like_count,
+            status,
+            create_time
+
+        FROM comment_tree
+
+        ORDER BY create_time ASC,
+            id ASC
+
+        LIMIT #{maxNodeCount}
+    </select>
+
+    <update id="updateContent">
+
+        update t_comment
+        set
+            content = #{content},
+            plain_text = #{plainText},
+            update_time = now()
+        where id = #{id}
+          and status = 1
+
+    </update>
+
+    <select id="selectEditInfoById"
+            resultType="com.neu.youthpathtalk.post.biz.dto.CommentEditDTO">
+        select
+            id,
+            user_id,
+            content,
+            create_time
+        from t_comment
+        where id = #{id}
+          and status = 1
+    </select>
+
+    <select id="selectDeleteInfoById"
+            resultType="com.neu.youthpathtalk.post.biz.dto.CommentDeleteDTO">
+
+        select
+            user_id,
+            root_id,
+            post_id
+        from t_comment
+        where id = #{id}
+          and status = 1
+
+    </select>
+
+    <select id="selectHotInfoByIds"
+            resultType="com.neu.youthpathtalk.post.biz.dto.CommentHotDTO">
+
+        select
+            id,
+            user_name,
+            content
+        from t_comment
+        where status = 1
+        and hot_score >= #{minScore}
+        and id in
+        <foreach collection="ids" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+
+    </select>
+
+    <update id="logicalDelete">
+
+        update t_comment
+        set
+            status = 0,
+            update_time = now()
+        where id = #{id}
+          and status = 1
+
+    </update>
+
+    <select id="selectLikeTarget"
+            resultType="com.neu.youthpathtalk.post.biz.dto.CommentLikeTargetDTO">
+
+        select
+            post_id,
+            root_id
+        from t_comment
+        where id = #{id}
+          and status = 1
+
+    </select>
+
+    <update id="updateLikeCountById">
+        update t_comment
+        set like_count = like_count + #{delta}
+        where id = #{id}
+          and status = 1
+    </update>
+</mapper>
+

@@ -1,5 +1,6 @@
 package com.neu.youthpathtalk.controller;
 
+import cn.dev33.satoken.annotation.SaCheckLogin;
 import com.neu.youthpathtalk.response.Response;
 import com.neu.youthpathtalk.service.SearchService;
 import com.neu.youthpathtalk.vo.req.SearchPostsReqVO;
@@ -32,5 +33,23 @@ public class SearchController {
     @GetMapping("/post/suggest")
     public Response<List<SuggestVO>> suggest(@RequestParam @NotBlank(message = "关键词不能为空") String keyword) {
         return searchService.suggestTitles(keyword);
+    }
+
+    @SaCheckLogin
+    @GetMapping("/history")
+    public Response<List<String>> getSearchHistory(){
+        return searchService.getSearchHistory();
+    }
+
+    @SaCheckLogin
+    @DeleteMapping("/history")
+    public Response<Void> clearSearchHistory(){
+        return searchService.clearSearchHistory();
+    }
+
+    @SaCheckLogin
+    @DeleteMapping("/history/{keyword}")
+    public Response<Void> deleteSearchHistory(@PathVariable String keyword){
+        return searchService.deleteSearchHistory(keyword);
     }
 }

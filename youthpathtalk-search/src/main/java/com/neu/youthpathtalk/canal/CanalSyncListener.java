@@ -39,8 +39,6 @@ import java.util.concurrent.*;
 @Component
 @RequiredArgsConstructor
 public class CanalSyncListener {
-    private final ElasticsearchOperations elasticsearchOperations;
-    private final PostRepository postRepository;
     private final CanalProperties canalProperties;
     private final SearchSyncProducer searchSyncProducer;
     private ExecutorService executor;

@@ -15,5 +15,6 @@ public class UserWeeklyRankInfoDTO {
     private String username;
     private String avatar;
     private Long universityId;
+    private String universityName;
     private Integer type;       // 考公/考研/就业等
 }

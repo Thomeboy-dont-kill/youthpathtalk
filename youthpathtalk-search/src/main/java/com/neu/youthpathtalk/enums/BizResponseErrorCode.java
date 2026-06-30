@@ -12,7 +12,8 @@ import lombok.RequiredArgsConstructor;
 @Getter
 @RequiredArgsConstructor
 public enum BizResponseErrorCode implements BaseException {
-    SEARCH_TOO_FREQUENT("SEARCH-20001", "搜索过于频繁，请稍后再试"),
+    AUTH_NOT_LOGIN("SEARCH-20001","用户未登录"),
+    SEARCH_TOO_FREQUENT("SEARCH-20002", "搜索过于频繁，请稍后再试"),
     ;
 
     private final String errorCode;

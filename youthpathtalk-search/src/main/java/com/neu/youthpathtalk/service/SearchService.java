@@ -15,4 +15,7 @@ import java.util.List;
 public interface SearchService {
     Response<SearchPostsRespVO> searchPosts(SearchPostsReqVO request);
     Response<List<SuggestVO>> suggestTitles(String keyword);
+    Response<List<String>> getSearchHistory();
+    Response<Void> clearSearchHistory();
+    Response<Void> deleteSearchHistory(String keyword);
 }

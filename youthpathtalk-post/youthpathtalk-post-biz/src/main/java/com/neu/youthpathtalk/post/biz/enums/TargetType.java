@@ -5,15 +5,14 @@ import lombok.RequiredArgsConstructor;
 
 /**
  * @author Julien
- * @time 2026/03/24 10:07
- * @description 点赞类型枚举
+ * @time 2026/06/11 20:50
+ * @description
  */
 @Getter
 @RequiredArgsConstructor
 public enum TargetType {
-    POST(0,"帖子"),
-    COMMENT(1,"评论"),
+    POST(1),
+    COMMENT(2),
     ;
     private final Integer code;
-    private final String desc;
 }

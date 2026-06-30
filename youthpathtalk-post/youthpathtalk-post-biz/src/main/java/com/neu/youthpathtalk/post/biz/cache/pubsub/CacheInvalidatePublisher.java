@@ -1,7 +1,6 @@
 package com.neu.youthpathtalk.post.biz.cache.pubsub;
 
 import com.neu.youthpathtalk.constant.redis.RedisChannel;
-import com.neu.youthpathtalk.post.biz.cache.RedisService;
 import com.neu.youthpathtalk.post.biz.util.JsonUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

@@ -14,7 +14,8 @@ import java.util.List;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class CursorPageRespVO<T> {
+public class CursorPageRespVO<T,C> {
     private List<T> list;
     private Boolean hasNext;
+    private C cursor;
 }

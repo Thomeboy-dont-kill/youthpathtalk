@@ -18,4 +18,6 @@ import java.util.List;
 public class SearchPostsRespVO {
     private List<PostListVO> list;
     private List<Object> searchAfter;
+    private List<SearchFacetVO> facets;
+    private String suggestKeyword;
 }

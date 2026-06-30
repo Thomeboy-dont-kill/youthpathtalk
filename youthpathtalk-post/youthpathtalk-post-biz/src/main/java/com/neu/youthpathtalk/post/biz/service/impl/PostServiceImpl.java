@@ -12,44 +12,53 @@ import com.neu.youthpathtalk.post.biz.cache.LocalCacheManager;
 import com.neu.youthpathtalk.post.biz.cache.RedisService;
 import com.neu.youthpathtalk.post.biz.cache.pubsub.CacheInvalidatePublisher;
 import com.neu.youthpathtalk.post.biz.constants.CacheConstants;
+import com.neu.youthpathtalk.post.biz.constants.CommentHotScoreConstants;
 import com.neu.youthpathtalk.post.biz.constants.MQConstants;
 import com.neu.youthpathtalk.post.biz.constants.WeeklyRankConstants;
-import com.neu.youthpathtalk.post.biz.dto.LikeResultDTO;
+import com.neu.youthpathtalk.post.biz.dto.CommentHotDTO;
+import com.neu.youthpathtalk.post.biz.dto.ToggleResultDTO;
 import com.neu.youthpathtalk.post.biz.dto.PostBasicInfoDTO;
 import com.neu.youthpathtalk.post.biz.entity.PostDO;
 import com.neu.youthpathtalk.post.biz.enums.BizResponseErrorCode;
 import com.neu.youthpathtalk.post.biz.enums.BoardType;
 import com.neu.youthpathtalk.post.biz.enums.PageSizeEnum;
-import com.neu.youthpathtalk.post.biz.enums.TargetType;
-import com.neu.youthpathtalk.post.biz.event.LikeEvent;
-import com.neu.youthpathtalk.post.biz.mapper.LikeRecordMapper;
+import com.neu.youthpathtalk.post.biz.event.PostFavoriteEvent;
+import com.neu.youthpathtalk.post.biz.mapper.CommentMapper;
+import com.neu.youthpathtalk.post.biz.mapper.FavoriteRecordMapper;
+import com.neu.youthpathtalk.post.biz.mapper.PostLikeRecordMapper;
 import com.neu.youthpathtalk.post.biz.mapper.PostMapper;
-import com.neu.youthpathtalk.post.biz.message.CommonCompensateMessage;
+import com.neu.youthpathtalk.post.biz.message.InteractCompensateMessage;
+import com.neu.youthpathtalk.post.biz.event.PostLikeEvent;
 import com.neu.youthpathtalk.post.biz.rpc.LeafIdGenService;
 import com.neu.youthpathtalk.post.biz.rpc.UserRpcService;
 import com.neu.youthpathtalk.post.biz.service.PostService;
 import com.neu.youthpathtalk.post.biz.util.JsonUtils;
-import com.neu.youthpathtalk.post.biz.vo.req.CursorPageReqVO;
+import com.neu.youthpathtalk.post.biz.vo.req.PostListReqVO;
 import com.neu.youthpathtalk.post.biz.vo.req.PostReqVO;
 import com.neu.youthpathtalk.post.biz.vo.req.PostUpdateReqVO;
 import com.neu.youthpathtalk.post.biz.vo.resp.*;
 import com.neu.youthpathtalk.response.Response;
-import com.neu.youthpathtalk.user.api.vo.rep.UserInfoRespVO;
+import com.neu.youthpathtalk.user.api.vo.resp.UserInfoRespVO;
 import jakarta.annotation.Resource;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.rocketmq.client.producer.SendCallback;
 import org.apache.rocketmq.client.producer.SendResult;
+import org.apache.rocketmq.client.producer.SendStatus;
 import org.apache.rocketmq.spring.core.RocketMQTemplate;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.messaging.Message;
 import org.springframework.messaging.support.MessageBuilder;
 import org.springframework.stereotype.Service;
+import org.springframework.util.CollectionUtils;
 
+import java.nio.charset.StandardCharsets;
+import java.time.*;
 import java.util.*;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
@@ -66,18 +75,33 @@ public class PostServiceImpl implements PostService {
     private final PostMapper postMapper;
     private final JsonUtils jsonUtils;
     private final RedisService redisService;
+    private final CommentMapper commentMapper;
     private final RocketMQTemplate rocketMQTemplate;
-    private final LikeRecordMapper likeRecordMapper;
+    private final PostLikeRecordMapper postLikeRecordMapper;
+    private final FavoriteRecordMapper favoriteRecordMapper;
     private final LocalCacheManager localCacheManager;
     private final CacheInvalidatePublisher cacheInvalidatePublisher;
+    private final ApplicationEventPublisher applicationEventPublisher;
     @Resource(name="taskExecutor")
     private Executor taskExecutor;
 
     private final AtomicBoolean isDeleting = new AtomicBoolean(false);
 
     @Override
+    public Response<String> getPostTitle(Long id) {
+
+        if (id == null) {
+            return Response.ok();
+        }
+
+        return Response.ok(
+                postMapper.selectTitleById(id)
+        );
+    }
+
+    @Override
     public Response<?> addPost(PostReqVO postReqVO) {
-        Long id=leafIdGenService.generateUserId();
+        Long id=leafIdGenService.generatePostId();
         Long userId= LoginUserContextHolder.getUserId();
         if (Objects.isNull(userId)){
             throw new BizException(BizResponseErrorCode.AUTH_NOT_LOGIN);
@@ -102,9 +126,10 @@ public class PostServiceImpl implements PostService {
             } catch (Exception e) {
                 log.error("删除帖子存在性缓存失败，existsKey:{}",existsKey,e);
             }
-            taskExecutor.execute(()->{
-                incrementWeeklyScore(userId, WeeklyRankConstants.WEEKLY_RANK_POST_SCORE);
-            });
+            asyncUpdateWeeklyRank(
+                    userId,
+                    WeeklyRankConstants.WEEKLY_RANK_POST_SCORE
+            );
             localCacheManager.invalidateExists(id);
             cacheInvalidatePublisher.publishExistsInvalidate(Collections.singletonList(id));
         }
@@ -112,59 +137,272 @@ public class PostServiceImpl implements PostService {
     }
 
     @Override
-    public Response<CursorPageRespVO<PostListVO>> getPostList(CursorPageReqVO cursorPageReqVO) {
-        int size=cursorPageReqVO.getSize().getCode();
-        if(isFirstPage(cursorPageReqVO)){
+    public Response<CursorPageRespVO<PostListVO,Void>> getPostList(PostListReqVO postListReqVO) {
+        int size= postListReqVO.getSize().getCode();
+        if(isFirstPage(postListReqVO)){
             String firstPageKey= PostRedisKey.firstPage(size);
-            CursorPageRespVO<PostListVO> cacheResult=null;
+            CursorPageRespVO<PostListVO,Void> cacheResult=null;
             try {
-                cacheResult=redisService.getCursorPage(firstPageKey,PostListVO.class);
+                cacheResult=redisService.getCursorPage(firstPageKey,PostListVO.class, Void.class);
             } catch (Exception e) {
                 log.error("获取第一页帖子列表缓存失败,降级走数据库查询",e);
             }
             if (!Objects.isNull(cacheResult)){
                 log.info("帖子分页第一页缓存命中，size={}",cacheResult.getList().size());
+                fillExtraInfo(
+                        cacheResult.getList()
+                );
                 return Response.ok(cacheResult);
             }
-            log.warn("帖子分页第一页未命中，走数据库查询");
-            CursorPageRespVO<PostListVO> dbResult=new CursorPageRespVO<>();
-            List<PostListVO> list=postMapper.selectByCursor(cursorPageReqVO,size+1);
-            list.forEach(vo -> vo.setBoardTypeName(BoardType.getBoardTypeName(vo.getBoardType())));
-            boolean hasNext = list.size() > size;
-            if (hasNext) {
-                list = list.subList(0, size);
+            String lockKey =
+                    PostRedisKey.firstPageLock(size);
+            String lockValue = null;
+
+            try {
+
+                lockValue = redisService.tryLock(
+                        lockKey,
+                        PostRedisKey.POST_FIRST_PAGE_LOCK_TTL,
+                        PostRedisKey.POST_FIRST_PAGE_LOCK_TTL_UNIT
+                );
+
+                if (Objects.nonNull(lockValue)) {
+                    cacheResult=redisService.getCursorPage(firstPageKey,PostListVO.class, Void.class);
+                    if (Objects.nonNull(cacheResult)){
+                        fillExtraInfo(
+                                cacheResult.getList()
+                        );
+                        return Response.ok(cacheResult);
+                    }
+                    CursorPageRespVO<PostListVO,Void> dbResult =
+                            buildFirstPage(postListReqVO);
+
+                    redisService.setCursorPage(
+                            firstPageKey,
+                            dbResult,
+                            PostRedisKey.FIRST_PAGE_TTL,
+                            PostRedisKey.FIRST_PAGE_TTL_UNIT
+                    );
+
+                    fillExtraInfo(
+                            dbResult.getList()
+                    );
+
+                    return Response.ok(dbResult);
+                }else {
+                    try {
+                        Thread.sleep(100);
+                    } catch (InterruptedException e) {
+                        log.warn("Thread.sleep()被打断");
+                    }
+
+                    cacheResult =
+                            redisService.getCursorPage(
+                                    firstPageKey,
+                                    PostListVO.class,
+                                    Void.class
+                            );
+
+                    if (cacheResult != null) {
+
+                        fillExtraInfo(
+                                cacheResult.getList()
+                        );
+
+                        return Response.ok(cacheResult);
+                    }
+                }
+            } catch (Exception e) {
+                log.error("重建第一页缓存失败", e);
+            }finally {
+
+                if (Objects.nonNull(lockValue)) {
+
+                    redisService.unLock(
+                            lockKey,
+                            lockValue
+                    );
+                }
             }
-            dbResult.setList(list);
-            dbResult.setHasNext(hasNext);
-            taskExecutor.execute(()->{
-                redisService.setCursorPage(firstPageKey,dbResult,
-                        PostRedisKey.FIRST_PAGE_TTL,
-                        PostRedisKey.FIRST_PAGE_TTL_UNIT);
-            });
+            log.warn("帖子分页第一页未命中，走数据库查询");
+            CursorPageRespVO<PostListVO,Void> dbResult=buildFirstPage(postListReqVO);
+            fillExtraInfo(
+                    dbResult.getList()
+            );
             return Response.ok(dbResult);
         }
-        return Response.ok(queryByCursor(cursorPageReqVO));
+        return Response.ok(queryByCursor(postListReqVO));
     }
-    private boolean isFirstPage(CursorPageReqVO cursorPageReqVO) {
+    private CursorPageRespVO<PostListVO,Void> buildFirstPage(
+            PostListReqVO postListReqVO
+    ) {
+
+        int size = postListReqVO.getSize().getCode();
+
+        List<PostListVO> list =
+                postMapper.selectByCursor(
+                        postListReqVO,
+                        size + 1
+                );
+
+        list.forEach(vo -> vo.setBoardTypeName(BoardType.getBoardTypeName(vo.getBoardType())));
+
+        boolean hasNext = list.size() > size;
+
+        if (hasNext) {
+            list = list.subList(0, size);
+        }
+
+        CursorPageRespVO<PostListVO,Void> result =
+                new CursorPageRespVO<>();
+
+        result.setList(list);
+        result.setHasNext(hasNext);
+
+        return result;
+    }
+    private void fillInteractStatus(
+            List<PostListVO> list
+    ) {
+
+        Long userId =
+                LoginUserContextHolder.getUserId();
+
+        if (Objects.isNull(userId)
+                || CollectionUtils.isEmpty(list)) {
+            return;
+        }
+
+        try {
+            List<Long> postIds = list.stream()
+                    .map(PostListVO::getId)
+                    .toList();
+
+            Map<Long, Boolean> likedMap = redisService.batchExistsInZSet(
+                    UserRedisKey.likeHistory(userId),
+                    postIds
+            );
+
+            Map<Long, Boolean> favoritedMap =
+                    redisService.batchExistsInZSet(
+                            UserRedisKey.favoriteHistory(userId),
+                            postIds
+                    );
+
+            for (PostListVO vo : list) {
+
+                Long postId = vo.getId();
+
+                vo.setLiked(
+                        likedMap.getOrDefault(
+                                postId,
+                                false
+                        )
+                );
+
+                vo.setFavorited(
+                        favoritedMap.getOrDefault(
+                                postId,
+                                false
+                        )
+                );
+            }
+        } catch (Exception e) {
+
+            log.error(
+                    "填充互动状态失败,userId={}",
+                    userId,
+                    e
+            );
+        }
+    }
+    private void fillHotComment(List<PostListVO> list) {
+
+        if (CollectionUtils.isEmpty(list)) {
+            return;
+        }
+
+        List<String> keys = list.stream()
+                .map(vo -> PostRedisKey.hotCommentRank(vo.getId()))
+                .toList();
+
+        List<Object> results = redisService.zRevRangePipeline(keys, 0, 0);
+
+        List<Long> commentIds = new ArrayList<>(list.size());
+
+        for (int i = 0; i < list.size(); i++) {
+
+            Set<String> raw = (Set<String>) results.get(i);
+
+            if (raw == null || raw.isEmpty()) {
+
+                commentIds.add(null);
+                continue;
+            }
+
+            commentIds.add(
+                    Long.valueOf(
+                            raw.iterator().next()
+                    )
+            );
+        }
+        List<Long> validIds =
+                commentIds.stream()
+                        .filter(Objects::nonNull)
+                        .distinct()
+                        .toList();
+        if (validIds.isEmpty()) {
+            return;
+        }
+
+        List<CommentHotDTO> hotList =
+                commentMapper.selectHotInfoByIds(validIds, CommentHotScoreConstants.HOT_COMMENT_MIN_SCORE);
+
+        Map<Long, CommentHotDTO> map =
+                hotList.stream()
+                        .collect(Collectors.toMap(CommentHotDTO::getId, v -> v));
+
+        for (int i = 0; i < list.size(); i++) {
+
+            Long commentId = commentIds.get(i);
+
+            if (commentId == null) {
+                continue;
+            }
+
+            list.get(i)
+                    .setHotComment(
+                            map.get(commentId)
+                    );
+        }
+    }
+    private void fillExtraInfo(List<PostListVO> list){
+
+        fillInteractStatus(list);
+
+        fillHotComment(list);
+    }
+    private boolean isFirstPage(PostListReqVO postListReqVO) {
         // 关键：必须所有游标字段都为null才是第一页
-        return cursorPageReqVO.getLastCreateTime() == null
-                && cursorPageReqVO.getLastId() == null
-                && cursorPageReqVO.getLastIsTop() == null
-                && cursorPageReqVO.getLastIsEssence() == null;
+        return postListReqVO.getLastCreateTime() == null
+                && postListReqVO.getLastId() == null
+                && postListReqVO.getLastIsTop() == null
+                && postListReqVO.getLastIsEssence() == null;
     }
-    private CursorPageRespVO<PostListVO> queryByCursor(CursorPageReqVO cursorPageReqVO){
-        Preconditions.checkArgument(!Objects.isNull(cursorPageReqVO.getLastIsTop()), "lastIsTop 不能为空");
-        Preconditions.checkArgument(!Objects.isNull(cursorPageReqVO.getLastIsEssence()), "lastIsEssence 不能为空");
-        Preconditions.checkArgument(!Objects.isNull(cursorPageReqVO.getLastCreateTime()), "lastUpdateTime 不能为空");
-        Preconditions.checkArgument(!Objects.isNull(cursorPageReqVO.getLastId()), "lastId 不能为空");
-        CursorPageRespVO<PostListVO> dbResult=new CursorPageRespVO<>();
-        int size=cursorPageReqVO.getSize().getCode();
-        List<PostListVO> list=postMapper.selectByCursor(cursorPageReqVO,size+1);
+    private CursorPageRespVO<PostListVO,Void> queryByCursor(PostListReqVO postListReqVO){
+        Preconditions.checkArgument(!Objects.isNull(postListReqVO.getLastIsTop()), "lastIsTop 不能为空");
+        Preconditions.checkArgument(!Objects.isNull(postListReqVO.getLastIsEssence()), "lastIsEssence 不能为空");
+        Preconditions.checkArgument(!Objects.isNull(postListReqVO.getLastCreateTime()), "lastUpdateTime 不能为空");
+        Preconditions.checkArgument(!Objects.isNull(postListReqVO.getLastId()), "lastId 不能为空");
+        CursorPageRespVO<PostListVO,Void> dbResult=new CursorPageRespVO<>();
+        int size= postListReqVO.getSize().getCode();
+        List<PostListVO> list=postMapper.selectByCursor(postListReqVO,size+1);
         list.forEach(vo -> vo.setBoardTypeName(BoardType.getBoardTypeName(vo.getBoardType())));
         boolean hasNext = list.size() > size;
         if (hasNext) {
             list = list.subList(0, size);
         }
+        fillExtraInfo(list);
         dbResult.setList(list);
         dbResult.setHasNext(hasNext);
         return dbResult;
@@ -176,17 +414,7 @@ public class PostServiceImpl implements PostService {
             throw new BizException(BizResponseErrorCode.POST_NOT_EXISTS_OR_ABNORMAL);
         }
         Long userId=LoginUserContextHolder.getUserId();
-        if (userId!=null){
-            String viewHistoryKey= UserRedisKey.viewHistory(userId);
-            try {
-                redisService.addRecentView(viewHistoryKey,id,System.currentTimeMillis(),
-                        RedisConstants.MAX_HISTORY_SIZE,PostRedisKey.POST_VIEW_HISTORY_TTL_SECONDS);
-            } catch (Exception e) {
-                log.error("记录用户浏览历史失败, userId={}, postId={}", userId, id, e);
-            }
-        }
         PostDetailRespVO postDetailRespVO=getPostDetailRespVO(id,isHot(id));
-
         String viewCountKey=PostRedisKey.viewCount(id);
         Long viewCount=null;
         try {
@@ -195,8 +423,64 @@ public class PostServiceImpl implements PostService {
         } catch (Exception e) {
             log.error("浏览计数失败，降级返回数据库记录");
         }
+        if (userId!=null){
+            String viewHistoryKey= UserRedisKey.viewHistory(userId);
+            try {
+                redisService.addRecentView(viewHistoryKey,id,System.currentTimeMillis(),
+                        RedisConstants.MAX_HISTORY_SIZE,PostRedisKey.POST_VIEW_HISTORY_TTL_SECONDS);
+            } catch (Exception e) {
+                log.error("记录用户浏览历史失败, userId={}, postId={}", userId, id, e);
+            }
+            fillInteractStatus(userId,id,postDetailRespVO);
+        }
         return Response.ok(postDetailRespVO);
     }
+
+    private void fillInteractStatus(
+            Long userId,
+            Long postId,
+            PostDetailRespVO vo
+    ) {
+
+        try {
+
+            vo.setLiked(
+                    redisService.zScore(
+                            UserRedisKey.likeHistory(userId),
+                            String.valueOf(postId)
+                    ) != null
+            );
+
+        } catch (Exception e) {
+
+            log.warn(
+                    "查询点赞状态失败,userId={},postId={}",
+                    userId,
+                    postId,
+                    e
+            );
+        }
+
+        try {
+
+            vo.setFavorited(
+                    redisService.zScore(
+                            UserRedisKey.favoriteHistory(userId),
+                            String.valueOf(postId)
+                    ) != null
+            );
+
+        } catch (Exception e) {
+
+            log.warn(
+                    "查询收藏状态失败,userId={},postId={}",
+                    userId,
+                    postId,
+                    e
+            );
+        }
+    }
+
     private Boolean isHot(Long id){
         String viewHourlyKey=PostRedisKey.viewHourly(id);
         Long viewHourly=null;
@@ -267,8 +551,8 @@ public class PostServiceImpl implements PostService {
             throw new BizException(BizResponseErrorCode.POST_NOT_EXISTS_OR_DELETED);
         }else {
             deleteAllFirstPageCachesAsync();
-            String viewCountKey=PostRedisKey.viewCount(postUpdateReqVO.getId());
-            redisService.deleteLenient(viewCountKey);
+            String titleKey = PostRedisKey.title(postUpdateReqVO.getId());
+            redisService.deleteLenient(titleKey);
         }
         return Response.ok();
     }
@@ -331,7 +615,7 @@ public class PostServiceImpl implements PostService {
     }
 
     @Override
-    public Response<PostLikeRespVO> likePost(Long id) {
+    public Response<InteractRespVO> likePost(Long id) {
         Long userId=LoginUserContextHolder.getUserId();
         //用户必须先登录，这里暂时没有处理
         if (Objects.isNull(userId)){
@@ -345,19 +629,26 @@ public class PostServiceImpl implements PostService {
 
         int retryCount=0;
 
-        LikeResultDTO result=null;
+        ToggleResultDTO result=null;
         do {
             try {
-                result=redisService.like(bitKey,countKey,userId);
+                result=redisService.toggleBitmapCounter(bitKey,countKey,userId);
             } catch (Exception e) {
                 log.error("获取点赞结果失败",e);
             }
             if (Objects.isNull(result)){
                 throw new BizException(CommonResponseErrorCode.SYSTEM_ERROR);
             }
-            if (result.getLiked()==-2){
+            if (result.getState()==-2){
                 //缓存不存在，利用分布式锁保证串行(同一时刻只有一个线程)初始化缓存，防止缓存击穿
-                initLikeCacheWithLock(bitKey,countKey,id);
+                initInteractCacheWithLock(
+                        bitKey,
+                        countKey,
+                        PostRedisKey.likeLock(id),
+                        Duration.ofDays(PostRedisKey.POST_LIKE_BIT_TTL_DAYS),
+                        Duration.ofDays(PostRedisKey.POST_LIKE_COUNT_TTL_DAYS),
+                        () -> postLikeRecordMapper.selectUserIdsByPostId(id)
+                );
                 if (retryCount<CacheConstants.MAX_RETRIES){
                     sleepWithBackoff(retryCount);
                 }
@@ -365,45 +656,203 @@ public class PostServiceImpl implements PostService {
                 break;
             }
             retryCount++;
-        }while (retryCount<=CacheConstants.MAX_RETRIES&&result.getLiked()==-2);
-        if (Objects.isNull(result)||result.getLiked()==-2){
+        }while (retryCount<=CacheConstants.MAX_RETRIES&&result.getState()==-2);
+        if (Objects.isNull(result)||result.getState()==-2){
             throw new BizException(BizResponseErrorCode.POST_LIKE_CACHE_EXPIRED);
         }
-        Boolean liked=result.getLiked().intValue()==1;
-        sendLikeEvent(userId,id,liked);
-        //后续新增了收藏/评论功能之后同样的方式埋点
+        Boolean interacted=result.getState()==1;
         Long authorId = getPostAuthorId(id);
-        if (authorId != null) {
-            taskExecutor.execute(() -> {
-                int delta = WeeklyRankConstants.WEEKLY_RANK_LIKE_SCORE;
-                try {
-                    incrementWeeklyScore(authorId, liked ? delta : -delta);
-                } catch (Exception e) {
-                    log.error("更新ZSet中用户得分失败,liked={},authorId={},delta={}",liked,userId,delta,e);
+        if (authorId == null) {
+            log.warn("帖子作者缺失,跳过点赞落库和创作者周榜计分, postId={}", id);
+        } else {
+            sendOrderlyEvent(
+                    MQConstants.TOPIC_POST_LIKE_RECORD,
+                    userId.toString(),
+                    new PostLikeEvent(
+                            UUID.randomUUID().toString(),
+                            userId,
+                            id,
+                            authorId,
+                            interacted
+                    )
+            );
+            //后续新增了收藏/评论功能之后同样的方式埋点
+            asyncUpdateWeeklyRank(
+                    authorId,
+                    interacted
+                            ? WeeklyRankConstants.WEEKLY_RANK_LIKE_SCORE
+                            : -WeeklyRankConstants.WEEKLY_RANK_LIKE_SCORE
+            );
+        }
+        asyncUpdateInteractionHistory(
+                UserRedisKey.likeHistory(userId),
+                id,
+                interacted,
+                MQConstants.TOPIC_USER_LIKE_HISTORY_COMPENSATE,
+                userId
+        );
+        InteractRespVO interactRespVO = new InteractRespVO();
+        interactRespVO.setInteracted(interacted);
+        interactRespVO.setCount(result.getCount());
+        return Response.ok(interactRespVO);
+    }
+
+    @Override
+    public Response<InteractRespVO> favoritePost(Long id) {
+        Long userId=LoginUserContextHolder.getUserId();
+        //用户必须先登录，这里暂时没有处理
+        if (Objects.isNull(userId)){
+            throw new BizException(BizResponseErrorCode.AUTH_NOT_LOGIN);
+        }
+        if (!existsPost(id)){
+            throw new BizException(BizResponseErrorCode.POST_NOT_EXISTS_OR_ABNORMAL);
+        }
+        String bitKey=PostRedisKey.favorite(id);
+        String countKey=PostRedisKey.favoriteCount(id);
+
+        int retryCount=0;
+
+        ToggleResultDTO result=null;
+        do {
+            try {
+                result=redisService.toggleBitmapCounter(bitKey,countKey,userId);
+            } catch (Exception e) {
+                log.error("获取点赞结果失败",e);
+            }
+            if (Objects.isNull(result)){
+                throw new BizException(CommonResponseErrorCode.SYSTEM_ERROR);
+            }
+            if (result.getState()==-2){
+                //缓存不存在，利用分布式锁保证串行(同一时刻只有一个线程)初始化缓存，防止缓存击穿
+                initInteractCacheWithLock(
+                        bitKey,
+                        countKey,
+                        PostRedisKey.favoriteLock(id),
+                        Duration.ofDays(PostRedisKey.POST_FAVORITE_BIT_TTL_DAYS),
+                        Duration.ofDays(PostRedisKey.POST_FAVORITE_COUNT_TTL_DAYS),
+                        () -> favoriteRecordMapper.selectUserIdsByPostId(id)
+                );
+                if (retryCount<CacheConstants.MAX_RETRIES){
+                    sleepWithBackoff(retryCount);
                 }
-            });
-        }
-        String likeHistoryKey=UserRedisKey.likeHistory(userId);
-        long now=System.currentTimeMillis();
-        if (Boolean.TRUE.equals(liked)){
-            try {
-                redisService.zAdd(likeHistoryKey,now,String.valueOf(id));
-            } catch (Exception e) {
-                log.error("添加用户维度点赞记录到ZSet失败，MQ异步补偿");
-                sendCommonCompensateMessage(userId,id,liked,now);
+            }else {
+                break;
             }
+            retryCount++;
+        }while (retryCount<=CacheConstants.MAX_RETRIES&&result.getState()==-2);
+        if (Objects.isNull(result)||result.getState()==-2){
+            throw new BizException(BizResponseErrorCode.POST_FAVORITE_CACHE_EXPIRED);
+        }
+        Boolean interacted=result.getState()==1L;
+        Long authorId = getPostAuthorId(id);
+        if (authorId == null) {
+            log.warn("帖子作者缺失,跳过创作者周榜计分, postId={}", id);
         }else {
-            try {
-                redisService.zRem(likeHistoryKey,String.valueOf(id));
-            } catch (Exception e) {
-                log.error("从ZSet移除用户维度点赞记录失败，MQ异步补偿");
-                sendCommonCompensateMessage(userId,id,liked,now);
-            }
+            //后续新增了收藏/评论功能之后同样的方式埋点
+            asyncUpdateWeeklyRank(
+                    authorId,
+                    interacted
+                            ? WeeklyRankConstants.WEEKLY_RANK_FAVORITE_SCORE
+                            : -WeeklyRankConstants.WEEKLY_RANK_FAVORITE_SCORE
+            );
         }
-        PostLikeRespVO postLikeRespVO = new PostLikeRespVO();
-        postLikeRespVO.setLiked(liked);
-        postLikeRespVO.setLikeCount(result.getLikeCount());
-        return Response.ok(postLikeRespVO);
+        sendOrderlyEvent(
+                MQConstants.TOPIC_POST_FAVORITE_EVENT,
+                userId.toString(),
+                new PostFavoriteEvent(
+                        UUID.randomUUID().toString(),
+                        userId,
+                        id,
+                        interacted
+                )
+        );
+        asyncUpdateInteractionHistory(
+                UserRedisKey.favoriteHistory(userId),
+                id,
+                interacted,
+                MQConstants.TOPIC_USER_FAVORITE_HISTORY_COMPENSATE,
+                userId
+        );
+        InteractRespVO interactRespVO = new InteractRespVO();
+        interactRespVO.setInteracted(interacted);
+        interactRespVO.setCount(result.getCount());
+        return Response.ok(interactRespVO);
+    }
+    private void asyncUpdateWeeklyRank(
+            Long authorId,
+            int scoreDelta
+    ) {
+
+        if (Objects.isNull(authorId)) {
+            return;
+        }
+
+        taskExecutor.execute(() -> {
+
+            try {
+
+                incrementWeeklyScore(authorId, scoreDelta);
+
+            } catch (Exception e) {
+
+                log.error(
+                        "更新创作者周榜失败,authorId={},delta={}",
+                        authorId,
+                        scoreDelta,
+                        e
+                );
+            }
+        });
+    }
+    private void asyncUpdateInteractionHistory(
+            String historyKey,
+            Long targetId,
+            Boolean interacted,
+            String compensateTopic,
+            Long userId
+    ) {
+
+        taskExecutor.execute(() -> {
+
+            long now = System.currentTimeMillis();
+
+            try {
+
+                if (Boolean.TRUE.equals(interacted)) {
+
+                    redisService.zAdd(
+                            historyKey,
+                            now,
+                            String.valueOf(targetId)
+                    );
+
+                } else {
+
+                    redisService.zRem(
+                            historyKey,
+                            String.valueOf(targetId)
+                    );
+                }
+
+            } catch (Exception e) {
+
+                log.error(
+                        "维护互动历史失败,key={},targetId={},interacted={},MQ异步补偿",
+                        historyKey,
+                        targetId,
+                        interacted,
+                        e
+                );
+
+                sendInteractCompensateMessage(
+                        compensateTopic,
+                        userId,
+                        targetId,
+                        interacted,
+                        now
+                );
+            }
+        });
     }
     //本来可以复用的，点赞/收藏/评论消息聚合的时候就不用再批量查询作者ID，后续再改
     private Long getPostAuthorId(Long id){
@@ -516,27 +965,39 @@ public class PostServiceImpl implements PostService {
             throw new RuntimeException(e);
         }
     }
-    //或许收藏可以复用
-    private void initLikeCacheWithLock(String bitKey,String countKey,Long id){
-        String lockKey=PostRedisKey.likeLock(id);
+
+    private void initInteractCacheWithLock(
+            String bitKey,
+            String countKey,
+            String lockKey,
+            Duration bitTtl,
+            Duration countTtl,
+            Supplier<List<Long>> userLoader
+    ){
         String value=null;
         try {
             value=redisService.tryLock(lockKey,
-                    PostRedisKey.POST_LIKE_LOCK_TTL,
-                    PostRedisKey.POST_LIKE_LOCK_TTL_UNIT);
+                    PostRedisKey.INIT_CACHE_LOCK_TTL,
+                    PostRedisKey.INIT_CACHE_LOCK_TTL_UNIT);
         } catch (Exception e) {
             log.error("获取锁异常",e);
         }
         if (!Objects.isNull(value)){
             try {
                 if (!redisService.exists(countKey)||!redisService.exists(bitKey)){
-                    initLikeCache(bitKey,countKey,id);
+                    initInteractCache(
+                            bitKey,
+                            countKey,
+                            bitTtl,
+                            countTtl,
+                            userLoader
+                    );
                 }
             }  catch (Exception e) {
                 try {
                     redisService.deleteStrict(bitKey);
                 } catch (Exception ex) {
-                    log.error("清理点赞记录位图失败，注意可能产生僵尸bitKey", ex);
+                    log.error("清理互动记录位图失败，注意可能产生僵尸bitKey", ex);
                 }
             }finally {
                 boolean result= redisService.unLock(lockKey,value);
@@ -547,22 +1008,28 @@ public class PostServiceImpl implements PostService {
         }
     }
 
-    private void initLikeCache(String bitKey,String countKey,Long id){
-        List<Long> userIds=likeRecordMapper.selectUserIdsByTarget(id, TargetType.POST.getCode());
-        int likeCount=userIds.size();
+    private void initInteractCache(
+            String bitKey,
+            String countKey,
+            Duration bitTtl,
+            Duration countTtl,
+            Supplier<List<Long>> userLoader
+    ){
+        List<Long> userIds=userLoader.get();
+        int count=userIds.size();
         int batchSize=1000;
 
-        if (likeCount>0) {
-            for (int i = 0; i < likeCount; i += batchSize) {
-                int end = Math.min(i + batchSize, likeCount);
+        if (count>0) {
+            for (int i = 0; i < count; i += batchSize) {
+                int end = Math.min(i + batchSize, count);
                 List<Long> batch = userIds.subList(i, end);
 
                 Object[] args = batch.stream().map(Object::toString).toArray();
 
                 try {
-                    redisService.initPostLikeBitmap(bitKey, args);
+                    redisService.initPostInteractBitmap(bitKey, args);
                 } catch (Exception e) {
-                    log.error("批量设置帖子点赞记录位图失败", e);
+                    log.error("批量设置帖子互动记录位图失败", e);
                     throw new RuntimeException(e);
                 }
             }
@@ -571,24 +1038,25 @@ public class PostServiceImpl implements PostService {
         }
 
         try {
-            Boolean isSuccess= redisService.expire(bitKey,PostRedisKey.POST_LIKE_BIT_TTL,PostRedisKey.POST_LIKE_BIT_TTL_UNIT);
+            Boolean isSuccess= redisService.expire(bitKey,bitTtl);
             if (Boolean.FALSE.equals(isSuccess)){
-                log.warn("初始化帖子点赞记录位图和设置帖子点赞记录位图过期时间顺序颠倒");
+                //似乎不会出现这种请况
+                log.warn("初始化帖子互动记录位图和设置帖子互动记录位图过期时间顺序颠倒");
                 try {
                     redisService.deleteStrict(bitKey);
                 } catch (Exception e) {
-                    log.error("删除帖子点赞记录位图缓存失败，注意可能产生僵尸key",e);
+                    log.error("删除帖子互动记录位图缓存失败，注意可能产生僵尸key",e);
                     throw new RuntimeException(e);
                 }
             }
         } catch (Exception e) {
-            log.error("设置帖子点赞记录位图过期时间失败",e);
+            log.error("设置帖子互动记录位图过期时间失败",e);
             throw new RuntimeException(e);
         }
         try {
-            redisService.setStrict(countKey,likeCount,PostRedisKey.POST_LIKE_COUNT_TTL,PostRedisKey.POST_LIKE_COUNT_TTL_UNIT);
+            redisService.setStrict(countKey,count,countTtl);
         } catch (Exception e) {
-            log.error("设置帖子点赞计数器失败");
+            log.error("设置帖子互动计数器失败");
         }
     }
 
@@ -601,57 +1069,58 @@ public class PostServiceImpl implements PostService {
             throw new BizException(CommonResponseErrorCode.SYSTEM_ERROR);
         }
     }
-    private void sendLikeEvent(Long userId,Long id,Boolean liked){
-        log.info("准备发送点赞事件: userId={}, postId={}, liked={}", userId, id, liked);
+
+    public <T> void sendOrderlyEvent(
+            String topic,
+            String hashKey,
+            T event
+    ) {
         try {
-            LikeEvent event=new LikeEvent(UUID.randomUUID().toString(),userId,id,liked);
-            String destination=MQConstants.TOPIC_POST_LIKE_RECORD;
-            Message<LikeEvent> message= MessageBuilder.withPayload(event).build();
-            String hashKey=String.valueOf(userId);
+            Message<T> message = MessageBuilder.withPayload(event).build();
 
-            // 异步发送，并注册回调
-            rocketMQTemplate.asyncSendOrderly(destination, message, hashKey, new SendCallback() {
-                @Override
-                public void onSuccess(SendResult sendResult) {
-                    log.info("点赞事件发送成功: userId={}, postId={}, msgId={}",
-                            userId, id, sendResult.getMsgId());
-                }
+            rocketMQTemplate.asyncSendOrderly(
+                    topic,
+                    message,
+                    hashKey,
+                    new SendCallback() {
 
-                @Override
-                public void onException(Throwable e) {
-                    log.error("点赞事件发送失败: userId={}, postId={}, error: {}",
-                            userId, id, e.getMessage(), e);
-                }
-            });
+                        @Override
+                        public void onSuccess(SendResult sendResult) {
+                            log.info("互动事件发送成功, msgId={}", sendResult.getMsgId());
+                        }
+
+                        @Override
+                        public void onException(Throwable e) {
+                            log.error("互动事件发送失败", e);
+                        }
+                    }
+            );
+
         } catch (Exception e) {
-            log.error("发送点赞事件异常",e);
+            log.error("互动发送异常", e);
         }
     }
 
-    private void sendCommonCompensateMessage(Long userId,Long id,Boolean liked,long now){
-        log.info("准备发送用户维度点赞记录补偿消息: userId={}, postId={}, liked={}", userId, id, liked);
+    private void sendInteractCompensateMessage(String destination,Long userId,Long id,Boolean interacted,long now){
+        log.info("准备发送用户维度互动记录补偿消息: userId={}, postId={}, interacted={}", userId, id, interacted);
         try {
-            CommonCompensateMessage message=new CommonCompensateMessage(userId,id,liked,now);
-            String destination=MQConstants.TOPIC_USER_LIKE_HISTORY_COMPENSATE;
+            InteractCompensateMessage message=new InteractCompensateMessage(userId,id,interacted,now);
             String hashKey=String.valueOf(userId);
 
-            // 异步发送，并注册回调
-            rocketMQTemplate.asyncSendOrderly(destination, message, hashKey, new SendCallback() {
-                @Override
-                public void onSuccess(SendResult sendResult) {
-                    log.info("用户维度点赞记录补偿消息发送成功: userId={}, postId={}, msgId={}",
-                            userId, id, sendResult.getMsgId());
-                }
+            // 外层异步，内层同步
+            SendResult sendResult = rocketMQTemplate.syncSendOrderly(destination, message, hashKey, 3000);
 
-                @Override
-                public void onException(Throwable e) {
-                    log.error("用户维度点赞记录补偿消息发送失败: userId={}, postId={}, liked={},error: {}",
-                            userId, id, liked, e.getMessage(), e);
-                    //可以补充：存入本地重试表
-                }
-            });
+            if (sendResult.getSendStatus() == SendStatus.SEND_OK) {
+                log.info("用户维度互动记录补偿消息发送成功: userId={}, postId={}, msgId={}",
+                        userId, id, sendResult.getMsgId());
+            } else {
+                log.error("用户维度互动记录补偿消息发送失败: sendStatus={},userId={}, postId={}, interacted={}",
+                        sendResult.getSendStatus(),userId, id, interacted);
+                // 可抛出业务异常或记录到本地重试表
+            }
         } catch (Exception e) {
-            log.error("发送用户维度点赞记录补偿消息异常",e);
+            log.error("发送用户维度互动记录补偿消息异常",e);
+            // 可抛出业务异常或记录到本地重试表
         }
     }
 
@@ -662,6 +1131,7 @@ public class PostServiceImpl implements PostService {
         }
         List<PostListVO> list = postMapper.selectPostListByIds(ids);
         list.forEach(vo -> vo.setBoardTypeName(BoardType.getBoardTypeName(vo.getBoardType())));
+        fillExtraInfo(list);
         return Response.ok(list);
     }
 
@@ -699,9 +1169,13 @@ public class PostServiceImpl implements PostService {
         }
         String key=UserRedisKey.weeklyRank();
         try {
+            Boolean exists =redisService.exists(key);
             Double newScore=redisService.zIncrBy(key,increment,String.valueOf(userId));
-            if (newScore!=null&&newScore==increment){
-                redisService.expire(key,UserRedisKey.USER_WEEKLY_RANK_TTL,UserRedisKey.USER_WEEKLY_RANK_TTL_UNIT);
+            if (!Boolean.TRUE.equals(exists)){
+                redisService.expireAt(
+                        key,
+                        UserRedisKey.getWeeklyRankExpireTime()
+                );
             }
             log.debug("创作者周榜更新:userId={},increment={},newScore={}",userId,increment,newScore);
         } catch (Exception e) {

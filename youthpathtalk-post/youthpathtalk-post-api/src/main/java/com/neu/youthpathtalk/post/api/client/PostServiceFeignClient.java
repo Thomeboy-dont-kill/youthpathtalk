@@ -4,6 +4,8 @@ import com.neu.youthpathtalk.post.api.constant.ApiConstants;
 import com.neu.youthpathtalk.post.api.vo.PostListVO;
 import com.neu.youthpathtalk.response.Response;
 import org.springframework.cloud.openfeign.FeignClient;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 
@@ -16,9 +18,12 @@ import java.util.List;
  */
 @FeignClient(
         name = ApiConstants.SERVICE_NAME,
+        contextId = "postFeignClient",
         path = "/post"
 )
 public interface PostServiceFeignClient {
     @PostMapping("/batch")
     Response<List<PostListVO>> batchGetPostList(@RequestBody(required = false) List<Long> ids);
+    @GetMapping("/{id}/title")
+    Response<String> getPostTitle(@PathVariable("id") Long id);
 }

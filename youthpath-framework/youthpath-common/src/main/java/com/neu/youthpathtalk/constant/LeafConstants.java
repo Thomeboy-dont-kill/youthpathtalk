@@ -8,4 +8,5 @@ package com.neu.youthpathtalk.constant;
 public interface LeafConstants {
     String LEAF_SEGMENT_USER="leaf-segment-user";
     String LEAF_SEGMENT_POST="leaf-segment-post";
+    String LEAF_SEGMENT_COMMENT="leaf-segment-comment";
 }

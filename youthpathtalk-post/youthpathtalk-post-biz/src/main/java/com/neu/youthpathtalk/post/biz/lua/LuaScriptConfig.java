@@ -14,17 +14,17 @@ import java.util.List;
  */
 @Component
 public class LuaScriptConfig {
-    @Bean("postLikeScript")
-    public DefaultRedisScript<List> postLikeScript(){
+    @Bean("bitmapCounterToggleScript")
+    public DefaultRedisScript<List> bitmapCounterToggleScript(){
         DefaultRedisScript<List> script=new DefaultRedisScript<>();
-        script.setLocation(new ClassPathResource("lua/post_like.lua"));
+        script.setLocation(new ClassPathResource("lua/bitmap_counter_toggle.lua"));
         script.setResultType(List.class);
         return script;
     }
-    @Bean("initPostLikeBitmapScript")
-    public DefaultRedisScript<Void> initPostLikeBitmapScript(){
+    @Bean("initPostInteractBitmapScript")
+    public DefaultRedisScript<Void> initPostInteractBitmapScript(){
         DefaultRedisScript<Void> script=new DefaultRedisScript<>();
-        script.setLocation(new ClassPathResource("lua/post_like_bitmap_batch_setBit.lua"));
+        script.setLocation(new ClassPathResource("lua/post_interact_bitmap_batch_setBit.lua"));
         script.setResultType(Void.class);
         return script;
     }
@@ -50,6 +50,14 @@ public class LuaScriptConfig {
         DefaultRedisScript<Void> script=new DefaultRedisScript<>();
         script.setLocation(new ClassPathResource("lua/post_view_record_ZSet_addRecentView.lua"));
         script.setResultType(Void.class);
+        return script;
+    }
+
+    @Bean("addCommentScript")
+    public DefaultRedisScript<Long> addCommentScript(){
+        DefaultRedisScript<Long> script=new DefaultRedisScript<>();
+        script.setLocation(new ClassPathResource("lua/post_comment_ZSet_addComment.lua"));
+        script.setResultType(Long.class);
         return script;
     }
 }

@@ -1,5 +1,7 @@
 package com.neu.youthpathtalk.exception;
 
+import cn.dev33.satoken.exception.NotLoginException;
+import com.neu.youthpathtalk.enums.BizResponseErrorCode;
 import com.neu.youthpathtalk.enums.CommonResponseErrorCode;
 import com.neu.youthpathtalk.response.Response;
 import jakarta.servlet.http.HttpServletRequest;
@@ -86,6 +88,18 @@ public class GlobalExceptionHandler {
         String errorMessage=e.getMessage();
         log.warn("{} request error, errorCode: {}, errorMessage: {}", request.getRequestURI(), errorCode, errorMessage);
         return Response.fail(errorCode,errorMessage);
+    }
+
+    /**
+     * 捕获登录校验异常
+     */
+    @ExceptionHandler(NotLoginException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public Response<?> handleNotLoginException(HttpServletRequest request,NotLoginException e){
+        String errorCode= BizResponseErrorCode.AUTH_NOT_LOGIN.getErrorCode();
+        String errorMessage=BizResponseErrorCode.AUTH_NOT_LOGIN.getErrorMessage();
+        log.warn("{} request error, errorCode: {}, errorMessage: {}", request.getRequestURI(),errorCode,errorMessage, e);
+        return Response.fail(BizResponseErrorCode.AUTH_NOT_LOGIN);
     }
 
     /**

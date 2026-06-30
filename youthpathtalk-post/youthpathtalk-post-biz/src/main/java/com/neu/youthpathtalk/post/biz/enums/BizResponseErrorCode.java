@@ -20,6 +20,12 @@ public enum BizResponseErrorCode implements BaseException {
     POST_NOT_EXISTS_OR_ABNORMAL("POST-20005","帖子不存在或状态异常"),
 
     POST_LIKE_CACHE_EXPIRED("POST-20006","点赞失败，请稍后重试"),
+    POST_FAVORITE_CACHE_EXPIRED("POST-20007","收藏失败，请稍后重试"),
+
+    COMMENT_NOT_EXISTS("POST-20008","评论不存在"),
+    COMMENT_NOT_OWNER("POST-20009","用户没有持有者权限"),
+    COMMENT_EDIT_EXPIRED("POST-20010","评论编辑功能失效"),
+    COMMENT_LIKE_CACHE_EXPIRED("POST-20011","点赞失败，请稍后重试"),
     ;
 
     private final String errorCode;

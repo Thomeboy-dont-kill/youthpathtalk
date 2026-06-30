@@ -25,6 +25,7 @@ import java.time.ZoneOffset;
 import java.util.*;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -102,22 +103,44 @@ public class HotBoardScheduler {
             redisService.deleteLenient(hotBoardTempKey);
         }
         taskExecutor.execute(()->{
+            List<PostDetailRespVO> details =
+                    postMapper.selectByIds(topIds);
+
+            Map<Long, PostDetailRespVO> detailMap =
+                    details.stream()
+                            .collect(
+                                    Collectors.toMap(
+                                            PostDetailRespVO::getId,
+                                            Function.identity()
+                                    )
+                            );
             for(Long postId:topIds){
                 try {
+                    PostDetailRespVO detail =
+                            detailMap.get(postId);
+                    if(detail == null){
+                        continue;
+                    }
                     String viewHotKey=PostRedisKey.viewHot(postId);
                     if (!redisService.exists(viewHotKey)) {
-                        PostDetailRespVO detail = postMapper.selectById(postId);
-                        if (Objects.nonNull(detail)) {
-                            String viewHourlyKey = PostRedisKey.viewHourly(postId);
-                            redisService.set(viewHourlyKey, String.valueOf(CacheConstants.HOT_THRESHOLD),
-                                    PostRedisKey.POST_VIEW_HOURLY_TTL,
-                                    PostRedisKey.POST_VIEW_HOURLY_TTL_UNIT);
-                            detail.setBoardTypeName(BoardType.getBoardTypeName(detail.getBoardType()));
-                            long randomExtra = ThreadLocalRandom.current().nextLong(0, RedisConstants.MAX_RANDOM_OFFSET);
-                            redisService.setJson(viewHotKey, detail,
-                                    PostRedisKey.POST_VIEW_HOT_TTL + randomExtra,
-                                    PostRedisKey.POST_VIEW_HOT_TTL_UNIT);
-                        }
+
+                        long randomExtra = ThreadLocalRandom.current().nextLong(0, RedisConstants.MAX_RANDOM_OFFSET);
+                        long timeout=PostRedisKey.POST_VIEW_HOT_TTL + randomExtra;
+                        TimeUnit unit=PostRedisKey.POST_VIEW_HOT_TTL_UNIT;
+                        detail.setBoardTypeName(BoardType.getBoardTypeName(detail.getBoardType()));
+                        redisService.setJson(
+                                viewHotKey,
+                                detail,
+                                timeout,
+                                unit
+                        );
+                        String viewHourlyKey = PostRedisKey.viewHourly(postId);
+                        redisService.set(
+                                viewHourlyKey,
+                                String.valueOf(CacheConstants.HOT_THRESHOLD),
+                                timeout,
+                                unit
+                        );
                     }
                 } catch (Exception e) {
                     log.error("预热帖子详情失败，postId={}",postId,e);

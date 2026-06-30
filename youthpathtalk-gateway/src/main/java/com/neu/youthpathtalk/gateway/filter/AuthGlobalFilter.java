@@ -40,12 +40,19 @@ public class AuthGlobalFilter implements GlobalFilter {
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
-        ServerHttpRequest request=exchange.getRequest();
-        String path=request.getURI().getPath();
+        ServerHttpRequest request = exchange.getRequest();
+
+        // 1. 先移除客户端可能伪造的 USER_ID 头
+        ServerHttpRequest cleanedRequest = request.mutate()
+                .headers(httpHeaders -> httpHeaders.remove(GlobalConstans.USER_ID))
+                .build();
+        ServerWebExchange cleanedExchange = exchange.mutate().request(cleanedRequest).build();
+        
+        String path=cleanedRequest.getURI().getPath();
 
         //OPTIONS请求直接放行（CORS预检）
-        if (request.getMethod() == HttpMethod.OPTIONS) {
-            return chain.filter(exchange);
+        if (cleanedRequest.getMethod() == HttpMethod.OPTIONS) {
+            return chain.filter(cleanedExchange);
         }
 
         //白名单放行
@@ -56,7 +63,7 @@ public class AuthGlobalFilter implements GlobalFilter {
         try {
             //从Cookie获取token
             String token = null;
-            HttpCookie cookie = request.getCookies().getFirst(AuthConstants.TOKEN_NAME);
+            HttpCookie cookie = cleanedRequest.getCookies().getFirst(AuthConstants.TOKEN_NAME);
             if (cookie != null) {
                 token = cookie.getValue();
             }
@@ -64,26 +71,26 @@ public class AuthGlobalFilter implements GlobalFilter {
             log.debug("网关认证 - path: {}, token: {}", path, token != null ? "存在" : "不存在");
 
             if (token == null || token.isEmpty()) {
-                return chain.filter(exchange);
+                return chain.filter(cleanedExchange);
             }
 
             //通过token获取userId（不依赖ThreadLocal上下文）
             Object loginId = StpUtil.getLoginIdByToken(token);
             if (loginId == null) {
-                return chain.filter(exchange);
+                return chain.filter(cleanedExchange);
             }
 
             Long userId = Long.parseLong(loginId.toString());
             log.debug("网关认证成功 - userId: {}, path: {}", userId, path);
 
             //透传userId到下游服务
-            ServerHttpRequest newRequest=request.mutate()
+            ServerHttpRequest newRequest=cleanedRequest.mutate()
                     .header(GlobalConstans.USER_ID,String.valueOf(userId))
                     .build();
-            return chain.filter(exchange.mutate().request(newRequest).build());
+            return chain.filter(cleanedExchange.mutate().request(newRequest).build());
         } catch (Exception e) {
             log.error("网关认证异常 - path: {}, error: {}", path, e.getMessage(), e);
-            return chain.filter(exchange);
+            return chain.filter(cleanedExchange);
         }
     }
 

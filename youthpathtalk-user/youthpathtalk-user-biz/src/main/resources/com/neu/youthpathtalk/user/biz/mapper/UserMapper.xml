@@ -89,14 +89,60 @@
             #{userId}
         </foreach>
     </update>
-    <select id="selectUserWeeklyRankInfoByIds" resultType="com.neu.youthpathtalk.user.biz.dto.UserWeeklyRankInfoDTO">
-        select id,username,avatar,university_id,type
-        FROM t_user
-        WHERE status = 1
-        AND id IN
-        <foreach collection="ids" item="id" open="(" separator="," close=")">
+    <select id="selectUserWeeklyRankInfoByIds"
+            resultType="com.neu.youthpathtalk.user.biz.dto.UserWeeklyRankInfoDTO">
+        SELECT
+        u.id,
+        u.username,
+        u.avatar,
+        u.university_id,
+        un.name AS universityName,
+        u.type
+        FROM t_user u
+        LEFT JOIN t_university un
+        ON u.university_id = un.id
+        WHERE u.status = 1
+        AND u.id IN
+        <foreach collection="ids"
+                 item="id"
+                 open="("
+                 separator=","
+                 close=")">
             #{id}
         </foreach>
+    </select>
+<!--
+    <select id="selectIdsByUsernames" resultType="java.lang.Long">
+        SELECT id
+        FROM t_user
+        WHERE username IN
+        <foreach collection="usernames"
+                 item="username"
+                 open="("
+                 separator=","
+                 close=")">
+            #{username}
+        </foreach>
+        AND status = 1
+    </select>
+    -->
+    <select id="selectMentionInfoByIds"
+            resultType="com.neu.youthpathtalk.user.biz.dto.UserMentionDTO">
+
+        SELECT
+        id,
+        username
+        FROM t_user
+        WHERE id IN
+
+        <foreach collection="ids"
+                 item="id"
+                 open="("
+                 separator=","
+                 close=")">
+            #{id}
+        </foreach>
+
     </select>
 </mapper>
 

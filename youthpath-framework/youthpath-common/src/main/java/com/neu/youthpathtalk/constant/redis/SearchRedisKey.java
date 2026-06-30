@@ -23,4 +23,9 @@ public final class SearchRedisKey {
     public static String slideLimitIP(String ip){
         return RedisKeyUtil.build(RedisKeyPrefix.SEARCH,RedisKeyPrefix.LIMIT,RedisKeyPrefix.SLIDE,"ip",ip);
     }
+    public static String history(Long userId){
+        return RedisKeyUtil.build(RedisKeyPrefix.SEARCH,"history",userId);
+    }
+
+    public static final long HISTORY_TTL_DAYS=30;
 }

@@ -17,6 +17,8 @@ import java.util.Date;
 //支持链式编程，灵活修改
 @Accessors(chain = true)
 public class PostDetailRespVO {
+    private Long id;
+
     private Long userId;
 
     private String username;
@@ -44,4 +46,8 @@ public class PostDetailRespVO {
     private LocalDateTime updateTime;
 
     private String content;
+
+    private Boolean liked;
+
+    private Boolean favorited;
 }

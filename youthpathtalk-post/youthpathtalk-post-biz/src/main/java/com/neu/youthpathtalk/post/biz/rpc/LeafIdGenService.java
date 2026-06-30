@@ -14,8 +14,12 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class LeafIdGenService {
     private final DistributedIdGenFeignClient distributedIdGenFeignClient;
-    public Long generateUserId(){
+    public Long generatePostId(){
         String idStr= distributedIdGenFeignClient.getSegmentId(LeafConstants.LEAF_SEGMENT_POST);
+        return Long.parseLong(idStr);
+    }
+    public Long generateCommentId(){
+        String idStr= distributedIdGenFeignClient.getSegmentId(LeafConstants.LEAF_SEGMENT_COMMENT);
         return Long.parseLong(idStr);
     }
 }

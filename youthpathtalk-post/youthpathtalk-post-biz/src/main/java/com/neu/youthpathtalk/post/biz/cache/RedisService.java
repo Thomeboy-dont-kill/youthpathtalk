@@ -2,24 +2,31 @@ package com.neu.youthpathtalk.post.biz.cache;
 
 import com.alibaba.nacos.shaded.com.google.common.base.Preconditions;
 import com.neu.youthpathtalk.constant.redis.PostRedisKey;
-import com.neu.youthpathtalk.post.biz.dto.LikeResultDTO;
+import com.neu.youthpathtalk.post.biz.constants.CacheConstants;
+import com.neu.youthpathtalk.post.biz.dto.ToggleResultDTO;
 import com.neu.youthpathtalk.post.biz.util.JsonUtils;
 import com.neu.youthpathtalk.post.biz.vo.resp.CursorPageRespVO;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.redis.core.Cursor;
+import org.springframework.data.redis.core.RedisCallback;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.ScanOptions;
-import org.springframework.data.redis.core.ZSetOperations;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
+import org.springframework.data.redis.serializer.RedisSerializer;
 import org.springframework.retry.annotation.Backoff;
 import org.springframework.retry.annotation.Retryable;
 import org.springframework.stereotype.Service;
+import org.springframework.util.CollectionUtils;
 
+import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.function.ToDoubleFunction;
+import java.util.stream.Collectors;
 
 /**
  * @author Julien
@@ -30,33 +37,36 @@ import java.util.function.Consumer;
 @Service
 public class RedisService {
     private final JsonUtils jsonUtils;
-    private final DefaultRedisScript<List> postLikeScript;
-    private final DefaultRedisScript<Void> initPostLikeBitmapScript;
+    private final DefaultRedisScript<List> bitmapCounterToggleScript;
+    private final DefaultRedisScript<Void> initPostInteractBitmapScript;
     private final DefaultRedisScript<Long> releaseLockScript;
     private final DefaultRedisScript<Long> incrementAndExpireScript;
     private final DefaultRedisScript<Void> addRecentViewScript;
+    private final DefaultRedisScript<Long> addCommentScript;
     private final RedisTemplate<String,String> redisTemplate;
 
     public RedisService(JsonUtils jsonUtils,
-                        @Qualifier("postLikeScript")DefaultRedisScript<List> postLikeScript,
-                        @Qualifier("initPostLikeBitmapScript")DefaultRedisScript<Void> initPostLikeBitmapScript,
+                        @Qualifier("bitmapCounterToggleScript")DefaultRedisScript<List> bitmapCounterToggleScript,
+                        @Qualifier("initPostInteractBitmapScript")DefaultRedisScript<Void> initPostInteractBitmapScript,
                         @Qualifier("releaseLockScript")DefaultRedisScript<Long> releaseLockScript,
                         @Qualifier("incrementAndExpireScript")DefaultRedisScript<Long> incrementAndExpireScript,
                         @Qualifier("addRecentViewScript")DefaultRedisScript<Void> addRecentViewScript,
+                        @Qualifier("addCommentScript")DefaultRedisScript<Long> addCommentScript,
                         RedisTemplate<String, String> redisTemplate) {
         this.jsonUtils = jsonUtils;
-        this.postLikeScript = postLikeScript;
-        this.initPostLikeBitmapScript=initPostLikeBitmapScript;
+        this.bitmapCounterToggleScript = bitmapCounterToggleScript;
+        this.initPostInteractBitmapScript=initPostInteractBitmapScript;
         this.releaseLockScript = releaseLockScript;
         this.incrementAndExpireScript=incrementAndExpireScript;
         this.addRecentViewScript=addRecentViewScript;
+        this.addCommentScript=addCommentScript;
         this.redisTemplate = redisTemplate;
     }
 
     /**
      * 存储分页响应对象
      */
-    public <T> void setCursorPage(String key, CursorPageRespVO<T> pageResp, long timeout, TimeUnit unit) {
+    public <T,C> void setCursorPage(String key, CursorPageRespVO<T,C> pageResp, long timeout, TimeUnit unit) {
         try {
             String json = jsonUtils.toJsonString(pageResp);
             redisTemplate.opsForValue().set(key, json, timeout, unit);
@@ -68,13 +78,13 @@ public class RedisService {
     /**
      * 获取分页响应对象（需要知道T的具体类型）
      */
-    public <T> CursorPageRespVO<T> getCursorPage(String key, Class<T> elementType) {
+    public <T,C> CursorPageRespVO<T,C> getCursorPage(String key,Class<T> elementType,Class<C> cursorType){
         String json = redisTemplate.opsForValue().get(key);
         if (StringUtils.isBlank(json)) {
             return null;
         }
         try {
-            return jsonUtils.parseGeneric(json,CursorPageRespVO.class,elementType);
+            return jsonUtils.parseGeneric(json,CursorPageRespVO.class,elementType,cursorType);
         } catch (Exception e) {
             log.error("RedisService getCursorPage反序列化失败, key: {}", key, e);
             throw new RuntimeException("RedisService getCursorPage error", e);
@@ -140,20 +150,21 @@ public class RedisService {
                     multiplier = 1.5
             )
     )
-    public LikeResultDTO like(String bitKey, String countKey, Long userId){
+
+    public ToggleResultDTO toggleBitmapCounter(String bitKey, String countKey, Long userId){
         Preconditions.checkArgument(Objects.nonNull(bitKey)&&Objects.nonNull(countKey)&&Objects.nonNull(userId),"参数不能为空");
         List<String> keys= Arrays.asList(bitKey,countKey);
         try {
-            List<Long> result=redisTemplate.execute(postLikeScript,keys,userId.toString());
+            List<Long> result=redisTemplate.execute(bitmapCounterToggleScript,keys,userId.toString());
             if (result==null||result.size()<2){
                 return null;
             }
-            Long liked=result.get(0);
+            Long state=result.get(0);
             Long count=result.get(1);
-            return new LikeResultDTO(liked,count);
+            return new ToggleResultDTO(state,count);
         } catch (Exception e) {
-            log.error("RedisService like 失败, error: {}", e.getMessage(), e);
-            throw new RuntimeException("RedisService like error",e);
+            log.error("RedisService interact 失败, error: {}", e.getMessage(), e);
+            throw new RuntimeException("RedisService interact error",e);
         }
     }
 
@@ -165,16 +176,16 @@ public class RedisService {
                     multiplier = 1.5
             )
     )
-    public void initPostLikeBitmap(String bitKey,Object[] args){
+    public void initPostInteractBitmap(String bitKey,Object[] args){
         Preconditions.checkArgument(Objects.nonNull(bitKey)&&Objects.nonNull(args),"参数不能为空");
         if (args.length==0){
             return;
         }
         try {
-            redisTemplate.execute(initPostLikeBitmapScript,Collections.singletonList(bitKey),args);
+            redisTemplate.execute(initPostInteractBitmapScript,Collections.singletonList(bitKey),args);
         } catch (Exception e) {
-            log.error("RedisService initPostLikeBitmap 失败, bitKey={}, userIds数量={}", bitKey, args.length, e);
-            throw new RuntimeException("RedisService initPostLikeBitmap error", e);
+            log.error("RedisService initPostInteractBitmap 失败, bitKey={}, userIds数量={}", bitKey, args.length, e);
+            throw new RuntimeException("RedisService initPostInteractBitmap error", e);
         }
     }
     public void initEmptyBitmap(String bitKey) {
@@ -369,6 +380,24 @@ public class RedisService {
         }
     }
 
+    // 重载，自动将任意对象转为字符串存储
+    @Retryable(
+            retryFor = {RuntimeException.class},
+            maxAttempts = 3,
+            backoff = @Backoff(
+                    delay = 1000,
+                    multiplier = 1.5
+            )
+    )
+    public void setStrict(String key, Object value,Duration duration) {
+        try {
+            redisTemplate.opsForValue().set(key, String.valueOf(value),duration);
+        } catch (Exception e) {
+            log.error("RedisService setStrict 失败, key: {},value: {}", key, value, e);
+            throw new RuntimeException("RedisService setStrict error", e);
+        }
+    }
+
     public void setLenient(String key, Object value,long timeout,TimeUnit unit) {
         try {
             redisTemplate.opsForValue().set(key, String.valueOf(value),timeout,unit);
@@ -388,6 +417,23 @@ public class RedisService {
     public Boolean expire(String key,long timeout,TimeUnit unit){
         try {
             return redisTemplate.expire(key,timeout,unit);
+        } catch (Exception e) {
+            log.error("RedisService expire 失败, key: {}", key, e);
+            throw new RuntimeException("RedisService expire error", e);
+        }
+    }
+
+    @Retryable(
+            retryFor = {RuntimeException.class},
+            maxAttempts = 3,
+            backoff = @Backoff(
+                    delay = 1000,
+                    multiplier = 1.5
+            )
+    )
+    public Boolean expire(String key, Duration duration){
+        try {
+            return redisTemplate.expire(key,duration);
         } catch (Exception e) {
             log.error("RedisService expire 失败, key: {}", key, e);
             throw new RuntimeException("RedisService expire error", e);
@@ -464,6 +510,22 @@ public class RedisService {
         }
     }
 
+    public void updateHotCommentRank(String hotCommentRankKey, Long id, double hotScore) {
+        try {
+            List<String> keys=Collections.singletonList(hotCommentRankKey);
+            List<String> args=Arrays.asList(
+                    String.valueOf(id),
+                    String.valueOf(hotScore),
+                    String.valueOf(CacheConstants.HOT_COMMENT_RANK_SIZE)
+            );
+            redisTemplate.execute(addCommentScript,keys,args.toArray());
+            log.debug("添加评论成功,key:{},commentId:{}",hotCommentRankKey,id);
+        } catch (Exception e) {
+            log.error("RedisService addComment 失败, hotCommentRankKey: {}", hotCommentRankKey, e);
+            throw new RuntimeException("RedisService addComment error", e);
+        }
+    }
+
     public Boolean zAdd(String key,double score,String value){
         try {
             return redisTemplate.opsForZSet().add(key,value,score);
@@ -477,7 +539,7 @@ public class RedisService {
         try {
             return redisTemplate.opsForZSet().remove(key,values);
         } catch (Exception e) {
-            log.error("RedisService zRem 失败,key:{},values:{}",key,values);
+            log.error("RedisService zRem 失败,key:{},values:{}",key,Arrays.toString(values));
             throw new RuntimeException("RedisService zRem error", e);
         }
     }
@@ -516,5 +578,194 @@ public class RedisService {
             log.error("RedisService zIncrBy 失败, key: {},value:{},delta:{}", key,value,delta, e);
             throw new RuntimeException("RedisService zIncrBy error", e);
         }
+    }
+
+    public Double zScore(String key, String member) {
+        try {
+            return redisTemplate.opsForZSet().score(key, member);
+        } catch (Exception e) {
+            log.error("RedisService zScore失败,key:{},member:{}", key, member, e);
+            throw new RuntimeException("RedisService zScore error", e);
+        }
+    }
+
+    public Map<Long, Boolean> batchExistsInZSet(
+            String key,
+            List<Long> ids
+    ) {
+
+        if (CollectionUtils.isEmpty(ids)) {
+            return Collections.emptyMap();
+        }
+
+        List<Object> results =
+                redisTemplate.executePipelined(
+                        (RedisCallback<Object>) connection -> {
+
+                            byte[] redisKey =
+                                    redisTemplate.getStringSerializer()
+                                            .serialize(key);
+
+                            for (Long id : ids) {
+
+                                connection.zScore(
+                                        redisKey,
+                                        redisTemplate
+                                                .getStringSerializer()
+                                                .serialize(String.valueOf(id))
+                                );
+                            }
+
+                            return null;
+                        }
+                );
+
+        Map<Long, Boolean> result =
+                new HashMap<>(ids.size());
+
+        for (int i = 0; i < ids.size(); i++) {
+
+            result.put(
+                    ids.get(i),
+                    results.get(i) != null
+            );
+        }
+
+        return result;
+    }
+
+    public List<Object> zRevRangePipeline(List<String> keys, long start, long end) {
+
+        try {
+            return redisTemplate.executePipelined((RedisCallback<Object>) connection -> {
+
+                for (String key : keys) {
+                    connection.zRevRange(
+                            redisTemplate.getStringSerializer()
+                                    .serialize(key),
+                            start,
+                            end
+                    );
+                }
+
+                return null;
+            });
+
+        } catch (Exception e) {
+            log.error("RedisService zRevRangePipeline失败, keys:{}", keys, e);
+            throw new RuntimeException("RedisService zRevRangePipeline error", e);
+        }
+    }
+
+    public <T> void batchUpdateZSetTopN(
+            List<T> data,
+            Function<T, String> keyFunc,
+            Function<T, String> memberFunc,
+            ToDoubleFunction<T> scoreFunc,
+            long topN
+    ) {
+
+        if (CollectionUtils.isEmpty(data)) {
+            return;
+        }
+
+        Map<String, List<T>> grouped =
+                data.stream()
+                        .collect(
+                                Collectors.groupingBy(keyFunc)
+                        );
+
+        try {
+
+            redisTemplate.executePipelined(
+                    (RedisCallback<Object>) connection -> {
+
+                        for (Map.Entry<String, List<T>> entry
+                                : grouped.entrySet()) {
+
+                            byte[] keyBytes =
+                                    redisTemplate
+                                            .getStringSerializer()
+                                            .serialize(entry.getKey());
+
+                            for (T item : entry.getValue()) {
+
+                                connection.zAdd(
+                                        keyBytes,
+                                        scoreFunc.applyAsDouble(item),
+                                        redisTemplate
+                                                .getStringSerializer()
+                                                .serialize(
+                                                        memberFunc.apply(item)
+                                                )
+                                );
+                            }
+
+                            connection.zRemRange(
+                                    keyBytes,
+                                    0,
+                                    -(topN + 1)
+                            );
+                        }
+
+                        return null;
+                    }
+            );
+
+        } catch (Exception e) {
+
+            log.error("batchUpdateZSetTopN失败", e);
+
+            throw new RuntimeException(e);
+        }
+    }
+    public void expireAt(
+            String key,
+            Date expireTime
+    ) {
+
+        redisTemplate.expireAt(
+                key,
+                expireTime
+        );
+    }
+
+    public void initBitmapCounterPipeline(
+            String bitKey,
+            String countKey,
+            List<Long> userIds,
+            Duration bitTtl,
+            Duration countTtl
+    ) {
+        redisTemplate.executePipelined((RedisCallback<Object>) connection -> {
+            RedisSerializer<String> serializer = redisTemplate.getStringSerializer();
+            byte[] bitKeyBytes = serializer.serialize(bitKey);
+            byte[] countKeyBytes = serializer.serialize(countKey);
+            if (CollectionUtils.isEmpty(userIds)) {
+                connection.setBit(
+                        bitKeyBytes,
+                        0,
+                        false
+                );
+            } else {
+                for (Long userId : userIds) {
+
+                    connection.setBit(
+                            bitKeyBytes,
+                            userId,
+                            true
+                    );
+                }
+            }
+            connection.set(
+                    countKeyBytes,
+                    serializer.serialize(
+                            String.valueOf(userIds.size())
+                    )
+            );
+            connection.expire(bitKeyBytes, bitTtl.getSeconds());
+            connection.expire(countKeyBytes, countTtl.getSeconds());
+            return null;
+        });
     }
 }

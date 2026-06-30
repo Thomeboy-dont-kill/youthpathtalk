@@ -11,7 +11,7 @@ import com.neu.youthpathtalk.auth.vo.SmsLoginReqVO;
 import com.neu.youthpathtalk.constant.redis.UserRedisKey;
 import com.neu.youthpathtalk.exception.BizException;
 import com.neu.youthpathtalk.response.Response;
-import com.neu.youthpathtalk.user.api.vo.rep.LoginRepVO;
+import com.neu.youthpathtalk.user.api.vo.resp.LoginRespVO;
 import com.neu.youthpathtalk.user.api.vo.req.AddUserReqVO;
 import com.neu.youthpathtalk.user.api.vo.req.GetUserIdByPwdLoginReqVO;
 import com.neu.youthpathtalk.user.api.vo.req.GetUserIdByPhoneReqVO;
@@ -40,10 +40,10 @@ public class AuthServiceImpl implements AuthService {
                 .phone(registerUserReqVO.getPhone())
                 .userType(registerUserReqVO.getUserType())
                 .build();
-        LoginRepVO loginRepVO=userRpcService.addUser(addUserReqVO);
-        StpUtil.login(loginRepVO.getUserId());
+        LoginRespVO loginRespVO =userRpcService.addUser(addUserReqVO);
+        StpUtil.login(loginRespVO.getUserId());
         String token=StpUtil.getTokenValue();
-        StpUtil.getSession().set("permission_list",loginRepVO.getPaths());
+        StpUtil.getSession().set("permission_list", loginRespVO.getPaths());
         return Response.ok(token);
     }
 
@@ -52,10 +52,10 @@ public class AuthServiceImpl implements AuthService {
         GetUserIdByPwdLoginReqVO getUserIdByPwdLoginReqVO=new GetUserIdByPwdLoginReqVO();
         getUserIdByPwdLoginReqVO.setUsername(passwordLoginReqVO.getUsername());
         getUserIdByPwdLoginReqVO.setPassword(passwordLoginReqVO.getPassword());
-        LoginRepVO loginRepVO=userRpcService.getUserIdByPasswordLogin(getUserIdByPwdLoginReqVO);
-        StpUtil.login(loginRepVO.getUserId());
+        LoginRespVO loginRespVO =userRpcService.getUserIdByPasswordLogin(getUserIdByPwdLoginReqVO);
+        StpUtil.login(loginRespVO.getUserId());
         String token=StpUtil.getTokenValue();
-        StpUtil.getSession().set("permission_list",loginRepVO.getPaths());
+        StpUtil.getSession().set("permission_list", loginRespVO.getPaths());
         return Response.ok(token);
     }
 
@@ -67,10 +67,10 @@ public class AuthServiceImpl implements AuthService {
         }
         GetUserIdByPhoneReqVO getUserIdByPhoneReqVO =new GetUserIdByPhoneReqVO();
         getUserIdByPhoneReqVO.setPhone(smsLoginReqVO.getPhone());
-        LoginRepVO loginRepVO=userRpcService.getUserIdByPhone(getUserIdByPhoneReqVO);
-        StpUtil.login(loginRepVO.getUserId());
+        LoginRespVO loginRespVO =userRpcService.getUserIdByPhone(getUserIdByPhoneReqVO);
+        StpUtil.login(loginRespVO.getUserId());
         String token=StpUtil.getTokenValue();
-        StpUtil.getSession().set("permission_list",loginRepVO.getPaths());//Sa-Token框架key是写死的
+        StpUtil.getSession().set("permission_list", loginRespVO.getPaths());//Sa-Token框架key是写死的
         return Response.ok(token);
     }
 }

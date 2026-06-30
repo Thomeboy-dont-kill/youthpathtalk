@@ -5,20 +5,14 @@ import com.neu.youthpathtalk.post.biz.cache.RedisService;
 import com.neu.youthpathtalk.post.biz.config.PostCleanupProperties;
 import com.neu.youthpathtalk.post.biz.constants.MQConstants;
 import com.neu.youthpathtalk.post.biz.dto.PostDeleteInfoDTO;
-import com.neu.youthpathtalk.post.biz.enums.TargetType;
-import com.neu.youthpathtalk.post.biz.mapper.LikeRecordMapper;
-import com.neu.youthpathtalk.post.biz.mapper.PostMapper;
+import com.neu.youthpathtalk.post.biz.mapper.*;
 import com.neu.youthpathtalk.post.biz.message.UserLikeCountDecrMessage;
-import com.neu.youthpathtalk.post.biz.util.JsonUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.ibatis.cursor.Cursor;
 import org.apache.rocketmq.client.producer.SendCallback;
 import org.apache.rocketmq.client.producer.SendResult;
 import org.apache.rocketmq.spring.core.RocketMQTemplate;
-import org.springframework.boot.context.properties.EnableConfigurationProperties;
-import org.springframework.messaging.Message;
-import org.springframework.messaging.support.MessageBuilder;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -38,10 +32,13 @@ import java.util.stream.Collectors;
 public class PostCleanupScheduler {
     private final PostMapper postMapper;
     private final RedisService redisService;
+    private final CommentMapper commentMapper;
     private final RocketMQTemplate rocketMQTemplate;
-    private final LikeRecordMapper likeRecordMapper;
-    private final PostCleanupProperties cleanupProperties;
     private final TransactionTemplate transactionTemplate;
+    private final PostLikeRecordMapper postLikeRecordMapper;
+    private final FavoriteRecordMapper favoriteRecordMapper;
+    private final PostCleanupProperties cleanupProperties;
+    private final CommentLikeRecordMapper commentLikeRecordMapper;
 
     @Scheduled(cron = "${post.cleanup.cron:0 0 3 * * ?}")
     public void cleanSoftDeletedPosts(){
@@ -81,8 +78,10 @@ public class PostCleanupScheduler {
     private void executeBatch(List<Long> postIds,Map<Long,Long> userDeltas){
         transactionTemplate.execute(status -> {
             try {
-                int likeRecordsDeleted=likeRecordMapper.deleteByTargets(TargetType.POST.getCode(),postIds);
-                log.debug("删除点赞记录{}条",likeRecordsDeleted);
+                commentLikeRecordMapper.deleteByPostIds(postIds);
+                commentMapper.deleteByPostIds(postIds);
+                postLikeRecordMapper.deleteByPostIds(postIds);
+                favoriteRecordMapper.deleteByPostIds(postIds);
                 //删除收藏记录，后续添加了收藏记录表再补充
                 int postsDeleted=postMapper.physicalDeleteByIds(postIds);
                 if (postsDeleted!=postIds.size()){
@@ -96,9 +95,17 @@ public class PostCleanupScheduler {
                 throw e;
             }
         });
-        List<String> keys=postIds.stream()
-                .map(PostRedisKey::viewCount)
-                .collect(Collectors.toList());
+        List<String> keys = new ArrayList<>();
+        keys.addAll(
+                postIds.stream()
+                        .map(PostRedisKey::viewCount)
+                        .toList()
+        );
+        keys.addAll(
+                postIds.stream()
+                        .map(PostRedisKey::hotCommentRank)
+                        .toList()
+        );
         redisService.deleteLenient(keys);
         if (!userDeltas.isEmpty()){
             try {

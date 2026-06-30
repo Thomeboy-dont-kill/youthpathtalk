@@ -14,11 +14,27 @@
     </select>
     <select id="selectById" resultType="com.neu.youthpathtalk.post.biz.vo.resp.PostDetailRespVO">
         SELECT
-            user_id, username, user_avatar, university_name,
+            id, user_id, username, user_avatar, university_name,
             board_type, title, content, view_count, like_count,
             comment_count, favorite_count, create_time, update_time
         FROM t_post
         WHERE id = #{id} AND status = 1
+    </select>
+    <select id="selectByIds" resultType="com.neu.youthpathtalk.post.biz.vo.resp.PostDetailRespVO">
+        SELECT
+            id, user_id, username, user_avatar, university_name,
+            board_type, title, content, view_count, like_count,
+            comment_count, favorite_count, create_time, update_time
+        FROM t_post
+        WHERE status = 1
+        AND id in
+        <foreach collection="ids"
+                 item="id"
+                 open="("
+                 separator=","
+                 close=")">
+            #{id}
+        </foreach>
     </select>
     <select id="selectBasicInfoById" resultType="com.neu.youthpathtalk.post.biz.dto.PostBasicInfoDTO">
         SELECT

@@ -1,5 +1,6 @@
 package com.neu.youthpathtalk.post.api.vo;
 
+import com.neu.youthpathtalk.post.api.dto.CommentHotDTO;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.experimental.Accessors;
@@ -32,4 +33,7 @@ public class PostListVO {
     private Integer isTop;
     private Integer isEssence;
     private LocalDateTime createTime;
+    private Boolean liked;
+    private Boolean favorited;
+    private CommentHotDTO hotComment;
 }

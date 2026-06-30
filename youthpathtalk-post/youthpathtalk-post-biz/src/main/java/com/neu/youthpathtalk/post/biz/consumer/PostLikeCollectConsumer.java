@@ -4,9 +4,7 @@ import com.github.phantomthief.collection.BufferTrigger;
 import com.neu.youthpathtalk.constant.redis.PostRedisKey;
 import com.neu.youthpathtalk.post.biz.cache.RedisService;
 import com.neu.youthpathtalk.post.biz.constants.MQConstants;
-import com.neu.youthpathtalk.post.biz.dto.PostAuthorDTO;
-import com.neu.youthpathtalk.post.biz.event.LikeEvent;
-import com.neu.youthpathtalk.post.biz.mapper.PostMapper;
+import com.neu.youthpathtalk.post.biz.event.PostLikeEvent;
 import com.neu.youthpathtalk.post.biz.message.CommonCountMessage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -16,12 +14,10 @@ import org.apache.rocketmq.spring.annotation.ConsumeMode;
 import org.apache.rocketmq.spring.annotation.RocketMQMessageListener;
 import org.apache.rocketmq.spring.core.RocketMQListener;
 import org.apache.rocketmq.spring.core.RocketMQTemplate;
-import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Component;
 
 import java.time.Duration;
 import java.util.*;
-import java.util.stream.Collectors;
 
 /**
  * @author Julien
@@ -36,11 +32,10 @@ import java.util.stream.Collectors;
         consumerGroup = MQConstants.CONSUMER_GROUP_POST_INTERACTION_COLLECT,
         consumeMode = ConsumeMode.ORDERLY
 )
-public class PostLikeCollectConsumer implements RocketMQListener<LikeEvent> {
+public class PostLikeCollectConsumer implements RocketMQListener<PostLikeEvent> {
     private final RocketMQTemplate rocketMQTemplate;
     private final RedisService redisService;
-    private final PostMapper postMapper;
-    private final BufferTrigger<LikeEvent> bufferTrigger=BufferTrigger.<LikeEvent>batchBlocking()
+    private final BufferTrigger<PostLikeEvent> bufferTrigger=BufferTrigger.<PostLikeEvent>batchBlocking()
             .bufferSize(50000)
             .batchSize(1000)
             .linger(Duration.ofSeconds(1))
@@ -48,7 +43,7 @@ public class PostLikeCollectConsumer implements RocketMQListener<LikeEvent> {
             .build();
 
     @Override
-    public void onMessage(LikeEvent likeEvent) {
+    public void onMessage(PostLikeEvent likeEvent) {
         String eventId=likeEvent.getId();
         String key= PostRedisKey.powerIdempotent(eventId);
         try {
@@ -73,38 +68,58 @@ public class PostLikeCollectConsumer implements RocketMQListener<LikeEvent> {
         }
     }
 
-    private void collectMessage(List<LikeEvent> events){
-        log.debug("【帖子点赞】聚合消息,size:{}",events.size());
-        Map<Long,Long> postDeltaMap=new HashMap<>();
-        for (LikeEvent event:events){
-            long delta=event.getLiked()?1L:-1L;
-            postDeltaMap.merge(event.getPostId(),delta,Long::sum);
-        }
-        
-        Set<Long> postIds=postDeltaMap.keySet();
-        if (postIds.isEmpty()){
-            return;
-        }
-        List<PostAuthorDTO> postAuthors=postMapper.selectAuthorByIds(postIds);
-        Map<Long,Long> postAuthorMap=postAuthors.stream()
-                .collect(Collectors.toMap(PostAuthorDTO::getPostId,PostAuthorDTO::getUserId));
-        Map<Long,Long> userDeltaMap=new HashMap<>();
-        
-        for (Map.Entry<Long,Long> entry:postDeltaMap.entrySet()){
-            Long delta=entry.getValue();
-            if (delta==0){
-                continue;
-            }
-            Long postId=entry.getKey();
-            Long authorId=postAuthorMap.get(postId);
-            if (authorId!=null){
-                userDeltaMap.merge(authorId,delta,Long::sum);
+    private void collectMessage(List<PostLikeEvent> events) {
+
+        log.debug("【帖子点赞】聚合消息,size:{}", events.size());
+
+        Map<Long, Long> postDeltaMap = new HashMap<>();
+
+        Map<Long, Long> userDeltaMap = new HashMap<>();
+
+        for (PostLikeEvent event : events) {
+
+            long delta = event.getLiked()
+                    ? 1L
+                    : -1L;
+
+            //视当前情况不做防御性检查
+            // 聚合帖子点赞数
+            postDeltaMap.merge(
+                    event.getPostId(),
+                    delta,
+                    Long::sum
+            );
+
+            // 聚合作者获赞数
+            Long authorId = event.getAuthorId();
+
+            //视当前情况做防御性检查
+            if (authorId != null) {
+                userDeltaMap.merge(
+                        authorId,
+                        delta,
+                        Long::sum
+                );
             }else {
-                log.warn("帖子不存在，无法更新用户计数:postId={}",postId);
+                log.warn("出现了authorId为null的PostLikeEvent对象");
             }
         }
-        sendBatchMessages(postDeltaMap,MQConstants.TOPIC_POST_LIKE_COUNT);
-        sendBatchMessages(userDeltaMap,MQConstants.TOPIC_USER_LIKE_COUNT);
+
+        if (!postDeltaMap.isEmpty()) {
+
+            sendBatchMessages(
+                    postDeltaMap,
+                    MQConstants.TOPIC_POST_LIKE_COUNT
+            );
+        }
+
+        if (!userDeltaMap.isEmpty()) {
+
+            sendBatchMessages(
+                    userDeltaMap,
+                    MQConstants.TOPIC_USER_LIKE_COUNT
+            );
+        }
     }
     private void sendBatchMessages(Map<Long,Long> deltaMap,String topic){
         for(Map.Entry<Long,Long> entry:deltaMap.entrySet()){

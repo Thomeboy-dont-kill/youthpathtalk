@@ -3,7 +3,7 @@ package com.neu.youthpathtalk.auth.rpc;
 import com.neu.youthpathtalk.exception.BizException;
 import com.neu.youthpathtalk.user.api.client.UserServiceFeignClient;
 import com.neu.youthpathtalk.user.api.constant.ApiConstants;
-import com.neu.youthpathtalk.user.api.vo.rep.LoginRepVO;
+import com.neu.youthpathtalk.user.api.vo.resp.LoginRespVO;
 import com.neu.youthpathtalk.user.api.vo.req.AddUserReqVO;
 import com.neu.youthpathtalk.user.api.vo.req.CheckPhoneRegisteredReqVO;
 import com.neu.youthpathtalk.user.api.vo.req.GetUserIdByPhoneReqVO;
@@ -31,24 +31,24 @@ public class UserRpcService {
         }
         return response.getData();
     }
-    public LoginRepVO addUser(AddUserReqVO addUserReqVO){
-        Response<LoginRepVO> response = userServiceFeignClient.addUser(addUserReqVO);
+    public LoginRespVO addUser(AddUserReqVO addUserReqVO){
+        Response<LoginRespVO> response = userServiceFeignClient.addUser(addUserReqVO);
         if (!response.getIsSuccess()){
             log.warn("{}:addUser业务异常, errorCode: {}, errorMessage: {}", ApiConstants.SERVICE_NAME,response.getErrorCode(),response.getErrorMessage());
             throw new BizException(response.getErrorCode(),response.getErrorMessage());
         }
         return response.getData();
     }
-    public LoginRepVO getUserIdByPasswordLogin(GetUserIdByPwdLoginReqVO getUserIdByPwdLoginReqVO){
-        Response<LoginRepVO> response=userServiceFeignClient.getUserIdByPasswordLogin(getUserIdByPwdLoginReqVO);
+    public LoginRespVO getUserIdByPasswordLogin(GetUserIdByPwdLoginReqVO getUserIdByPwdLoginReqVO){
+        Response<LoginRespVO> response=userServiceFeignClient.getUserIdByPasswordLogin(getUserIdByPwdLoginReqVO);
         if (!response.getIsSuccess()) {
             log.warn("{}:getUserIdByPasswordLogin业务异常, errorCode: {}, errorMessage: {}", ApiConstants.SERVICE_NAME,response.getErrorCode(),response.getErrorMessage());
             throw new BizException(response.getErrorCode(),response.getErrorMessage());
         }
         return response.getData();
     }
-    public LoginRepVO getUserIdByPhone(GetUserIdByPhoneReqVO getUserIdByPhoneReqVO){
-        Response<LoginRepVO> response=userServiceFeignClient.getUserIdByPhone(getUserIdByPhoneReqVO);
+    public LoginRespVO getUserIdByPhone(GetUserIdByPhoneReqVO getUserIdByPhoneReqVO){
+        Response<LoginRespVO> response=userServiceFeignClient.getUserIdByPhone(getUserIdByPhoneReqVO);
         if (!response.getIsSuccess()) {
             log.warn("{}:getUserIdByPhone业务异常, errorCode: {}, errorMessage: {}", ApiConstants.SERVICE_NAME,response.getErrorCode(),response.getErrorMessage());
             throw new BizException(response.getErrorCode(),response.getErrorMessage());

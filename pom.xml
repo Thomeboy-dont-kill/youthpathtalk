@@ -23,6 +23,7 @@
     <module>youthpathtalk-post</module>
     <module>youthpathtalk-user</module>
     <module>youthpathtalk-compensate</module>
+    <module>youthpathtalk-notification</module>
     <module>youthpathtalk-search</module>
   </modules>
 
@@ -266,10 +267,10 @@
       </dependency>
 
       <dependency>
-      <groupId>org.jsoup</groupId>
-      <artifactId>jsoup</artifactId>
-      <version>${jsoup.version}</version>
-    </dependency>
+        <groupId>org.jsoup</groupId>
+        <artifactId>jsoup</artifactId>
+        <version>${jsoup.version}</version>
+      </dependency>
     </dependencies>
   </dependencyManagement>
 

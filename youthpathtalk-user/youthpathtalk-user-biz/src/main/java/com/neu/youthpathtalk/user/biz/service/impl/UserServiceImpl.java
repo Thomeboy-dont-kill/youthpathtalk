@@ -1,7 +1,8 @@
 package com.neu.youthpathtalk.user.biz.service.impl;
 
 import com.alibaba.nacos.shaded.com.google.common.base.Preconditions;
-import com.neu.youthpathtalk.constant.redis.PostRedisKey;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.neu.youthpathtalk.constant.redis.RedisConstants;
 import com.neu.youthpathtalk.constant.redis.UserRedisKey;
 import com.neu.youthpathtalk.enums.CommonResponseErrorCode;
 import com.neu.youthpathtalk.enums.UserType;
@@ -11,9 +12,7 @@ import com.neu.youthpathtalk.post.api.vo.PostListVO;
 import com.neu.youthpathtalk.response.Response;
 import com.neu.youthpathtalk.user.biz.cache.RedisService;
 import com.neu.youthpathtalk.user.biz.constants.UserRoleConstants;
-import com.neu.youthpathtalk.user.biz.dto.UserInfoDTO;
-import com.neu.youthpathtalk.user.biz.dto.UserPostInfoDTO;
-import com.neu.youthpathtalk.user.biz.dto.UserWeeklyRankInfoDTO;
+import com.neu.youthpathtalk.user.biz.dto.*;
 import com.neu.youthpathtalk.user.biz.entity.UserRoleDO;
 import com.neu.youthpathtalk.user.biz.enums.UserStatus;
 import com.neu.youthpathtalk.user.biz.mapper.PermissionMapper;
@@ -25,15 +24,16 @@ import com.neu.youthpathtalk.user.biz.enums.BizResponseErrorCode;
 import com.neu.youthpathtalk.user.biz.mapper.UserMapper;
 import com.neu.youthpathtalk.user.biz.rpc.PostRpcService;
 import com.neu.youthpathtalk.user.biz.service.UserService;
-import com.neu.youthpathtalk.user.biz.vo.rep.*;
+import com.neu.youthpathtalk.user.biz.util.JsonUtils;
+import com.neu.youthpathtalk.user.biz.vo.resp.*;
 import com.neu.youthpathtalk.user.biz.vo.req.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.BeanUtils;
-import org.springframework.data.redis.core.ZSetOperations;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.CollectionUtils;
 import org.yaml.snakeyaml.constructor.DuplicateKeyException;
 
 import java.time.Instant;
@@ -52,6 +52,7 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class UserServiceImpl implements UserService {
+    private final JsonUtils jsonUtils;
     private final UserMapper userMapper;
     private final BCryptPasswordEncoder passwordEncoder;
     private final LeafIdGenService leafIdGenService;
@@ -67,7 +68,7 @@ public class UserServiceImpl implements UserService {
      */
     @Override
     @Transactional
-    public Response<LoginRepVO> addUser(AddUserReqVO addUserReqVO) {
+    public Response<LoginRespVO> addUser(AddUserReqVO addUserReqVO) {
         Long userId= leafIdGenService.generateUserId();
         UserDO userDO=new UserDO()
                 .setId(userId)
@@ -96,10 +97,10 @@ public class UserServiceImpl implements UserService {
             throw new BizException(BizResponseErrorCode.USER_ROLE_INIT_ERROR);
         }
         List<String> paths=permissionMapper.selectPermissionsByRoleId(UserRoleConstants.REGULAR_USER_ROLE_ID);
-        LoginRepVO loginRepVO = new LoginRepVO();
-        loginRepVO.setUserId(userId);
-        loginRepVO.setPaths(paths);
-        return Response.ok(loginRepVO);
+        LoginRespVO loginRespVO = new LoginRespVO();
+        loginRespVO.setUserId(userId);
+        loginRespVO.setPaths(paths);
+        return Response.ok(loginRespVO);
     }
 
     @Override
@@ -109,7 +110,7 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public Response<LoginRepVO> getUserIdByPasswordLogin(GetUserIdByPwdLoginReqVO getUserIdByPwdLoginReqVO) {
+    public Response<LoginRespVO> getUserIdByPasswordLogin(GetUserIdByPwdLoginReqVO getUserIdByPwdLoginReqVO) {
         String username=getUserIdByPwdLoginReqVO.getUsername();
         UserInfoDTO userInfoDTO=userMapper.selectUserInfoByUsername(username);
         if (userInfoDTO==null){
@@ -124,24 +125,24 @@ public class UserServiceImpl implements UserService {
         Long userId=userInfoDTO.getId();
         Long roleId=userRoleMapper.selectRoleIdByUserId(userId);
         List<String> paths=permissionMapper.selectPermissionsByRoleId(roleId);
-        LoginRepVO loginRepVO = new LoginRepVO();
-        loginRepVO.setUserId(userId);
-        loginRepVO.setPaths(paths);
-        return Response.ok(loginRepVO);
+        LoginRespVO loginRespVO = new LoginRespVO();
+        loginRespVO.setUserId(userId);
+        loginRespVO.setPaths(paths);
+        return Response.ok(loginRespVO);
     }
 
     @Override
-    public Response<LoginRepVO> getUserIdByPhone(GetUserIdByPhoneReqVO getUserIdByPhoneReqVO) {
+    public Response<LoginRespVO> getUserIdByPhone(GetUserIdByPhoneReqVO getUserIdByPhoneReqVO) {
         Long userId=userMapper.selectUserIdByPhone(getUserIdByPhoneReqVO.getPhone());
         if (userId==null){
             throw new BizException(BizResponseErrorCode.USER_STATUS_ABNORMAL);
         }
         Long roleId=userRoleMapper.selectRoleIdByUserId(userId);
         List<String> paths=permissionMapper.selectPermissionsByRoleId(roleId);
-        LoginRepVO loginRepVO = new LoginRepVO();
-        loginRepVO.setUserId(userId);
-        loginRepVO.setPaths(paths);
-        return Response.ok(loginRepVO);
+        LoginRespVO loginRespVO = new LoginRespVO();
+        loginRespVO.setUserId(userId);
+        loginRespVO.setPaths(paths);
+        return Response.ok(loginRespVO);
     }
 
     @Override
@@ -160,44 +161,60 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    public Response<Map<Long, String>> getMentionInfoBatch(
+            Set<Long> userIds) {
+        if (CollectionUtils.isEmpty(userIds)) {
+            return Response.ok(Collections.emptyMap());
+        }
+        List<UserMentionDTO> users =
+                userMapper.selectMentionInfoByIds(userIds);
+        Map<Long, String> result = users.stream()
+                .collect(Collectors.toMap(
+                        UserMentionDTO::getId,
+                        UserMentionDTO::getUsername
+                ));
+        return Response.ok(result);
+    }
+/*
+
+    @Override
+    public Response<List<Long>> getIdsByUsernames(List<String> usernames) {
+        if (CollectionUtils.isEmpty(usernames)) {
+            return Response.ok(Collections.emptyList());
+        }
+        List<Long> userIds=userMapper.selectIdsByUsernames(usernames);
+        return Response.ok(userIds);
+    }
+*/
+
+    @Override
     public Response<List<BrowseHistoryVO>> getBrowseHistory() {
         Long userId= LoginUserContextHolder.getUserId();
         if (userId==null){
             throw new BizException(BizResponseErrorCode.AUTH_NOT_LOGIN);
         }
         String viewHistoryKey= UserRedisKey.viewHistory(userId);
-        Set<ZSetOperations.TypedTuple<String>> tuples;
-        try {
-            tuples=redisService.getRecentViewHistory(viewHistoryKey);
-        } catch (Exception e) {
-            log.error("获取最近浏览的帖子的ID列表失败");
-            throw new BizException(CommonResponseErrorCode.SYSTEM_ERROR);
-        }
-        if (tuples.isEmpty()){
+        List<ZSetItemDTO> items =
+                redisService.listZSet(viewHistoryKey, 0, RedisConstants.MAX_HISTORY_SIZE-1);
+        if (CollectionUtils.isEmpty(items)){
             return Response.ok(Collections.emptyList());
         }
-        List<Long> postIds=new ArrayList<>();
-        Map<Long,Long> postIdToTimestamp=new HashMap<>();
-        for (ZSetOperations.TypedTuple<String> tuple:tuples){
-            Long postId=Long.parseLong(tuple.getValue());
-            Long timestamp=tuple.getScore().longValue();
-            postIds.add(postId);
-            postIdToTimestamp.put(postId,timestamp);
-        }
+        List<Long> postIds =
+                items.stream()
+                        .map(ZSetItemDTO::getId)
+                        .toList();
         List<PostListVO> postList=postRpcService.batchGetPostList(postIds);
-        if (Objects.isNull(postList)){
-            throw new BizException(CommonResponseErrorCode.SYSTEM_ERROR);
-        }
         Map<Long,PostListVO> postIdToPostListVO=postList.stream()
                 .collect(Collectors.toMap(PostListVO::getId, Function.identity()));
         List<BrowseHistoryVO> result=new ArrayList<>();
-        for (Long postId:postIds){
-            PostListVO postListVO=postIdToPostListVO.get(postId);
+        for (ZSetItemDTO item:items){
+            PostListVO postListVO=postIdToPostListVO.get(item.getId());
             if (Objects.isNull(postListVO)){
-                log.debug("浏览记录中帖子不存在或状态异常,postId={},userId={}",postId,userId);
+                log.debug("浏览记录中帖子不存在或状态异常,item.getId()={},userId={}",item.getId(),userId);
+                redisService.zRem(viewHistoryKey,String.valueOf(item.getId()));
                 continue;
             }
-            Long timestamp=postIdToTimestamp.get(postId);
+            Long timestamp=item.getScore().longValue();
             LocalDateTime browseTime=LocalDateTime.ofInstant(Instant.ofEpochMilli(timestamp), ZoneId.systemDefault());
             BrowseHistoryVO browseHistoryVO = BrowseHistoryVO.builder()
                     .id(postListVO.getId())
@@ -215,7 +232,7 @@ public class UserServiceImpl implements UserService {
                     .favoriteCount(postListVO.getFavoriteCount())
                     .isTop(postListVO.getIsTop())
                     .isEssence(postListVO.getIsEssence())
-                    .updateTime(postListVO.getUpdateTime())
+                    .updateTime(postListVO.getCreateTime())
                     .browseTime(browseTime)
                     .build();
             result.add(browseHistoryVO);
@@ -227,14 +244,38 @@ public class UserServiceImpl implements UserService {
     public Response<PageRespVO<PostListVO>> getLikeHistory(int pageNo,int pageSize) {
         Long userId=LoginUserContextHolder.getUserId();
         if (Objects.isNull(userId)){
-            throw new BizException(BizResponseErrorCode.AUTH_LOGIN_FAILED);
+            throw new BizException(BizResponseErrorCode.AUTH_NOT_LOGIN);
         }
-        String likeHistoryKey=UserRedisKey.likeHistory(userId);
+        return getInteractHistory(
+                userId,
+                UserRedisKey.likeHistory(userId),
+                pageNo,pageSize
+        );
+    }
+
+    @Override
+    public Response<PageRespVO<PostListVO>> getFavoriteHistory(int pageNo,int pageSize) {
+        Long userId=LoginUserContextHolder.getUserId();
+        if (Objects.isNull(userId)){
+            throw new BizException(BizResponseErrorCode.AUTH_NOT_LOGIN);
+        }
+        return getInteractHistory(
+                userId,
+                UserRedisKey.favoriteHistory(userId),
+                pageNo,pageSize
+        );
+    }
+    private Response<PageRespVO<PostListVO>> getInteractHistory(
+            Long userId,
+            String InteractHistoryKey,
+            int pageNo,
+            int pageSize
+    ){
         Long total;
         try {
-            total = redisService.zCard(likeHistoryKey);
+            total = redisService.zCard(InteractHistoryKey);
         } catch (Exception e) {
-            log.error("获取用户维度点赞历史ZSet集合大小失败",e);
+            log.error("获取用户维度互动历史ZSet集合大小失败",e);
             throw new BizException(CommonResponseErrorCode.SYSTEM_ERROR);
         }
         if (total==null||total==0){
@@ -244,24 +285,26 @@ public class UserServiceImpl implements UserService {
         long start=(long) (pageNo-1)*pageSize;
         long end=start+pageSize-1;
 
-        Set<ZSetOperations.TypedTuple<String>> tuples;
-        try {
-            tuples = redisService
-                    .zRevRangeWithScores(likeHistoryKey, start, end);
-        } catch (Exception e) {
-            log.error("获取用户维度点赞历史分页失败",e);
-            throw new BizException(CommonResponseErrorCode.SYSTEM_ERROR);
+        List<ZSetItemDTO> items =
+                redisService.listZSet(InteractHistoryKey, start, end);
+
+        if (CollectionUtils.isEmpty(items)) {
+
+            return Response.ok(
+                    new PageRespVO<>(
+                            total,
+                            pageNo,
+                            pageSize,
+                            Collections.emptyList()
+                    )
+            );
         }
-        if (tuples==null||tuples.isEmpty()){
-            return Response.ok(new PageRespVO<>(total,
-                    pageNo,pageSize,Collections.emptyList()));
-        }
-        List<Long> postIds=new ArrayList<>();
-        for (ZSetOperations.TypedTuple<String> tuple:tuples){
-            Long postId=Long.parseLong(tuple.getValue());
-            Long timestamp=tuple.getScore().longValue();
-            postIds.add(postId);
-        }
+
+        List<Long> postIds =
+                items.stream()
+                        .map(ZSetItemDTO::getId)
+                        .toList();
+
         List<PostListVO> postList=postRpcService.batchGetPostList(postIds);
         Map<Long,PostListVO> postMap=postList.stream()
                 .collect(Collectors.toMap(PostListVO::getId,Function.identity()));
@@ -269,7 +312,12 @@ public class UserServiceImpl implements UserService {
         for (Long postId:postIds){
             PostListVO vo=postMap.get(postId);
             if (Objects.isNull(vo)){
-                log.warn("用户点赞记录中帖子不存在或状态异常, userId={}, postId={}",userId,postId);
+                log.warn("用户互动记录中帖子不存在或状态异常, userId={}, postId={}",userId,postId);
+                redisService.zRem(
+                        InteractHistoryKey,
+                        String.valueOf(postId)
+                );
+                total--;
             }else{
                 sortedList.add(vo);
             }
@@ -279,52 +327,162 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public Response<List<CreatorWeeklyRankRespVO>> getWeeklyRank(int limit) {
-        Preconditions.checkArgument(limit > 0 && limit <= 100, "limit必须在1~100之间");
+        Preconditions.checkArgument(limit > 0 && limit <= 20, "limit必须在1~20之间");
+        String weeklyRankVOKey =
+                UserRedisKey.weeklyRankVO(limit);
+
+        List<CreatorWeeklyRankRespVO> cacheResult = getWeeklyRankFromCache(weeklyRankVOKey);
+        if (cacheResult != null) {
+            return Response.ok(cacheResult);
+        }
+
+        String lockKey=UserRedisKey.weeklyRankVOLock(limit);
+        String lockValue = null;
+        try {
+            lockValue = redisService.tryLock(lockKey,
+                    UserRedisKey.USER_WEEKLY_RANK_VO_LOCK_TTL,
+                    UserRedisKey.USER_WEEKLY_RANK_VO_LOCK_TTL_UNIT
+            );
+            if (Objects.nonNull(lockValue)&& !redisService.exists(weeklyRankVOKey)){
+                List<CreatorWeeklyRankRespVO> result =
+                        buildWeeklyRank(limit);
+                String weeklyRankVOJson=jsonUtils.toJsonString(result);
+                redisService.set(weeklyRankVOKey,
+                        weeklyRankVOJson,
+                        UserRedisKey.USER_WEEKLY_RANK_VO_TTL,
+                        UserRedisKey.USER_WEEKLY_RANK_VO_TTL_UNIT
+                );
+            }
+        } catch (Exception e) {
+            log.error("重建创作者周榜缓存失败,weeklyRankVOKey={}",weeklyRankVOKey,e);
+        }finally {
+            if (Objects.nonNull(lockValue)) {
+                redisService.unLock(lockKey, lockValue);
+            }else {
+                try {
+                    Thread.sleep(100);
+                } catch (InterruptedException e) {
+                    log.warn("Thread.sleep()被打断");
+                }
+                cacheResult = getWeeklyRankFromCache(weeklyRankVOKey);
+                if (cacheResult != null) {
+                    return Response.ok(cacheResult);
+                }
+            }
+        }
+        List<CreatorWeeklyRankRespVO> result =
+                buildWeeklyRank(limit);
+        return Response.ok(result);
+    }
+    private List<CreatorWeeklyRankRespVO> getWeeklyRankFromCache(
+            String cacheKey
+    ) {
+
+        try {
+
+            String json =
+                    redisService.get(cacheKey);
+
+            if (StringUtils.isBlank(json)) {
+                return null;
+            }
+
+            return jsonUtils.parseList(
+                    json,
+                    CreatorWeeklyRankRespVO.class
+            );
+
+        } catch (JsonProcessingException e) {
+
+            log.error(
+                    "创作者周榜缓存反序列化失败, cacheKey={}",
+                    cacheKey,
+                    e
+            );
+
+            return null;
+
+        } catch (Exception e) {
+
+            log.error(
+                    "获取创作者周榜缓存失败, cacheKey={}",
+                    cacheKey,
+                    e
+            );
+
+            return null;
+        }
+    }
+    private List<CreatorWeeklyRankRespVO> buildWeeklyRank(int limit) {
         String weeklyRankKey=UserRedisKey.weeklyRank();
 
-        Set<ZSetOperations.TypedTuple<String>> tuples;
-        try {
-            tuples = redisService
-                    .zRevRangeWithScores(weeklyRankKey,0,limit-1);
-        } catch (Exception e) {
-            log.error("从ZSet获取创作者周榜失败",e);
-            throw new BizException(CommonResponseErrorCode.SYSTEM_ERROR);
+        List<ZSetItemDTO> items =
+                redisService.listZSet(
+                        weeklyRankKey,
+                        0,
+                        limit - 1
+                );
+
+        if (CollectionUtils.isEmpty(items)) {
+            return Collections.emptyList();
         }
 
-        if (Objects.isNull(tuples)||tuples.isEmpty()){
-            return Response.ok(Collections.emptyList());
-        }
-
-        List<Long> userIds=new ArrayList<>();
-        Map<Long,Double> scoreMap=new HashMap<>();
-        for (ZSetOperations.TypedTuple<String> tuple:tuples){
-            Long userId=Long.parseLong(tuple.getValue());
-            userIds.add(userId);
-            scoreMap.put(userId,tuple.getScore());
-        }
+        List<Long> userIds =
+                items.stream()
+                        .map(ZSetItemDTO::getId)
+                        .toList();
 
         List<UserWeeklyRankInfoDTO> userInfos= userMapper.selectUserWeeklyRankInfoByIds(userIds);
         Map<Long,UserWeeklyRankInfoDTO> userMap=userInfos.stream()
                 .collect(Collectors.toMap(UserWeeklyRankInfoDTO::getId,Function.identity()));
 
         List<CreatorWeeklyRankRespVO> result=new ArrayList<>();
-        for (Long userId:userIds){
-            UserWeeklyRankInfoDTO userInfo=userMap.get(userId);
+        for (ZSetItemDTO item : items){
+            UserWeeklyRankInfoDTO userInfo=userMap.get(item.getId());
             if (Objects.isNull(userInfo)){
                 log.warn("用户已删除或状态异常");
                 continue;
             }
-            String universityName=universityMapper.selectUniversityNameById(userInfo.getUniversityId());
+            //N+1次查询
             CreatorWeeklyRankRespVO vo=CreatorWeeklyRankRespVO.builder()
-                    .userId(userId)
+                    .userId(item.getId())
                     .username(userInfo.getUsername())
                     .userAvatar(userInfo.getAvatar())
-                    .universityName(universityName)
+                    .universityName(userInfo.getUniversityName())
                     .type(UserType.getUserTypeName(userInfo.getType()))
-                    .score(scoreMap.get(userId))
+                    .score(item.getScore())
                     .build();
             result.add(vo);
         }
-        return Response.ok(result);
+        return result;
+    }
+    @Override
+    public Response<Void> deleteBrowseHistory(Long postId) {
+        Long userId=LoginUserContextHolder.getUserId();
+        if (Objects.isNull(userId)){
+            throw new BizException(BizResponseErrorCode.AUTH_NOT_LOGIN);
+        }
+        String viewHistoryKey=UserRedisKey.viewHistory(userId);
+        try {
+            redisService.zRem(viewHistoryKey,String.valueOf(postId));
+        } catch (Exception e) {
+            throw new BizException(CommonResponseErrorCode.SYSTEM_ERROR);
+        }
+        return Response.ok();
+    }
+
+    @Override
+    public Response<Void> clearBrowseHistory() {
+        Long userId=LoginUserContextHolder.getUserId();
+        if (Objects.isNull(userId)){
+            throw new BizException(BizResponseErrorCode.AUTH_NOT_LOGIN);
+        }
+        String viewHistoryKey=UserRedisKey.viewHistory(userId);
+        try {
+            redisService.delete(viewHistoryKey);
+        } catch (Exception e) {
+            throw new BizException(CommonResponseErrorCode.SYSTEM_ERROR);
+        }
+        return null;
     }
 }

@@ -10,7 +10,7 @@ import org.springframework.data.redis.serializer.StringRedisSerializer;
 /**
  * @author Julien
  * @time 2026/03/22 13:55
- * @description 对redis序列化和反序列化配置
+ * @description 对redis序列化和反序列化配置，在pipeline里获取了redisTemplate的RedisSerializer<String>，如果后面修改要相应修改
  */
 @Configuration
 public class RedisConfig {
