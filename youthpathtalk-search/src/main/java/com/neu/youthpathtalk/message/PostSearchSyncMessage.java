@@ -1,6 +1,5 @@
 package com.neu.youthpathtalk.message;
 
-import com.neu.youthpathtalk.document.PostDocument;
 import com.neu.youthpathtalk.enums.SearchSyncOperation;
 import lombok.AllArgsConstructor;
 import lombok.Builder;

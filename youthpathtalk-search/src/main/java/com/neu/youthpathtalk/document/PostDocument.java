@@ -19,22 +19,26 @@ public class PostDocument {
     @Id
     private Long id;
 
-    @Field(type = FieldType.Text,
+    @Field(
+            type = FieldType.Text,
             analyzer = "ik_max_word",
-            searchAnalyzer = "ik_smart"
+            searchAnalyzer = "synonym_search_analyzer"
     )
     private String title;
 
-    @Field(type = FieldType.Text,
-            analyzer = "edge_ngram_analyzer"
+    @Field(
+            type = FieldType.Text,
+            analyzer = "edge_ngram_analyzer",
+            searchAnalyzer = "suggest_search_analyzer"
     )
     private String titleSuggest;
 
-    @Field(type = FieldType.Text,
+    @Field(
+            type = FieldType.Text,
             analyzer = "ik_max_word",
-            searchAnalyzer = "ik_smart"
+            searchAnalyzer = "synonym_search_analyzer"
     )
-    private String content;
+    private String plainText;
 
     //标签？
     @Field(type = FieldType.Integer)

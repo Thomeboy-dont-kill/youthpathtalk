@@ -1,11 +1,13 @@
 package com.neu.youthpathtalk.post.biz.richtext.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.neu.youthpathtalk.post.biz.enums.RichTextNodeType;
-import com.neu.youthpathtalk.post.biz.richtext.model.MentionAttrs;
+import com.neu.youthpathtalk.post.biz.richtext.model.attrs.ImageAttrs;
+import com.neu.youthpathtalk.post.biz.richtext.model.attrs.MentionAttrs;
 import com.neu.youthpathtalk.post.biz.richtext.model.RichTextDoc;
 import com.neu.youthpathtalk.post.biz.richtext.model.RichTextNode;
+import com.neu.youthpathtalk.post.biz.richtext.model.attrs.VideoAttrs;
 import com.neu.youthpathtalk.post.biz.rpc.UserRpcService;
-import com.neu.youthpathtalk.user.api.vo.resp.UserInfoRespVO;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
@@ -25,19 +27,55 @@ import java.util.Set;
 @Component
 @RequiredArgsConstructor
 public class RichTextService {
+    private final ObjectMapper objectMapper;
 
     private final UserRpcService userRpcService;
 
+    //可添加枚举类来适应不同功能的富文本处理要求
     public ProcessResult process(RichTextDoc doc) {
 
         doc.check();
+
+        for (RichTextNode node : doc.getContent()) {
+
+            switch (node.getType()) {
+                case TEXT -> {}
+
+                case MENTION -> {
+
+                    MentionAttrs attrs =
+                            attrs(node, MentionAttrs.class);
+
+                    attrs.check();
+                }
+
+                case IMAGE -> {
+
+                    ImageAttrs attrs =
+                            attrs(node, ImageAttrs.class);
+
+                    attrs.check();
+                }
+
+                case VIDEO -> {
+
+                    VideoAttrs attrs =
+                            attrs(node, VideoAttrs.class);
+
+                    attrs.check();
+                }
+            }
+        }
 
         Set<Long> mentionedUserIds = new HashSet<>();
 
         // Step1：收集mention userId
         for (RichTextNode node : doc.getContent()) {
             if (node.getType() == RichTextNodeType.MENTION) {
-                mentionedUserIds.add(node.getAttrs().getUserId());
+
+                MentionAttrs attrs = attrs(node, MentionAttrs.class);
+
+                mentionedUserIds.add(attrs.getUserId());
             }
         }
 
@@ -50,19 +88,19 @@ public class RichTextService {
 
             if (node.getType() == RichTextNodeType.MENTION) {
 
-                String username =
-                        userMap.get(node.getAttrs().getUserId());
+                MentionAttrs attrs = attrs(node, MentionAttrs.class);
+
+                String username = userMap.get(attrs.getUserId());
 
                 if (username == null) {
 
-                    // 降级为text
                     node.setType(RichTextNodeType.TEXT);
-                    node.setText("@" + node.getAttrs().getUsername());
+                    node.setText("@" + attrs.getUsername());
                     node.setAttrs(null);
 
                 } else {
-                    // 修正username快照
-                    node.getAttrs().setUsername(username);
+
+                    attrs.setUsername(username);
                 }
             }
         }
@@ -96,16 +134,42 @@ public class RichTextService {
                 }
 
                 case MENTION -> {
-                    MentionAttrs attrs = node.getAttrs();
+                    MentionAttrs attrs = attrs(node, MentionAttrs.class);
                     if (attrs != null &&
                             StringUtils.isNotBlank(attrs.getUsername())) {
                         sb.append("@").append(attrs.getUsername());
                     }
                 }
+
+                case IMAGE, VIDEO -> {
+                    //什么也不做
+                }
             }
         }
 
         return sb.toString();
+    }
+
+    private void validateNode(RichTextNode node) {
+
+        switch (node.getType()) {
+
+            case MENTION -> {
+
+                MentionAttrs attrs =
+                        attrs(node, MentionAttrs.class);
+
+                attrs.check();
+            }
+
+            case IMAGE,VIDEO -> {
+                //暂时不做ImageAttrs, VideoAttrs业务强校验
+            }
+        }
+    }
+
+    private <T> T attrs(RichTextNode node, Class<T> clazz) {
+        return objectMapper.convertValue(node.getAttrs(), clazz);
     }
 
     @Data

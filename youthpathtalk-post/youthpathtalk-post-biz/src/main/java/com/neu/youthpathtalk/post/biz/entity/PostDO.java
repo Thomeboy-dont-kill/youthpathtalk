@@ -48,6 +48,8 @@ public class PostDO {
 
     private String content;
 
+    private String plainText;
+
     private LocalDateTime topEndTime;
 
     private LocalDateTime essenceEndTime;

@@ -579,7 +579,15 @@
 {
     "boardType":"WORK",
     "title":"大三如何找实习",
-    "content":"找不到实习了，寄"
+    "content": {
+        "type":"doc",
+        "content": [
+            {
+                "type": "text",
+                "text": "找不到实习了，寄"
+            }
+        ]
+    }
 }
 ```
 
@@ -721,7 +729,15 @@
         "favoriteCount": 0,
         "createTime": "2026-04-06T22:56:00",
         "updateTime": "2026-03-21T15:41:24",
-        "content": "找不到实习了，寄",
+        "content": {
+            "type":"doc",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "找不到实习了，寄"
+                }
+            ]
+        },
         "liked":false,
         "favorited":false
     },
@@ -763,7 +779,15 @@
     "id":8,
     "boardType":"WORK",
     "title":"大三怎么找实习",
-    "content":"找不到实习了，寄"
+    "content":{
+        "type":"doc",
+        "content": [
+            {
+                "type": "text",
+                "text": "找不到实习了，寄"
+            }
+        ]
+    }
 }
 ```
 
@@ -949,7 +973,7 @@
 |参数名|类型|必填|描述|可选值|
 |:---|:---:|:---:|:---|:---|
 |postId|Long|是|帖子ID|:---|
-|content|String|是|评论内容，最大长度500字符|:---|
+|content|String|是|评论内容，后端自动提取纯文本，纯文本最大长度500字符|:---|
 
 #### 请求示例
 
@@ -1045,7 +1069,7 @@
 |参数名|类型|必填|描述|可选值|
 |:---|:---:|:---:|:---|:---|
 |parentId|Long|是|被回复的评论的ID|:---|
-|content|String|是|回复内容，最大长度500字符|:---|
+|content|String|是|回复内容，后端自动提取纯文本，最大长度500字符|:---|
 
 #### 请求示例
 
@@ -1102,9 +1126,10 @@
 |content.content|Array[RichTextNode]|是|富文本节点数组|-|
 |content.content[].type|String|是|节点类型|"text" / "mention"|
 |content.content[].text|String|条件必填|文本内容（当 type = text 时必填）|-|
-|content.content[].attrs|MentionAttrs|条件必填|提及属性（当 type = mention 时必填）|-|
+|content.content[].attrs|JsonNode|条件必填|提及属性（当 type = mention,image,video 时必填）|-|
 |content.content[].attrs.userId|Long|条件必填|被提及用户ID（当 type = mention 时必填）|-|
 |content.content[].attrs.username|String|条件必填|被提及用户名（当 type = mention 时必填）|-|
+|content.content[].attrs.url|String|条件必填|图片/视频链接（当 type = image,video 时必填）|-|
 
 #### 请求示例
 
@@ -1883,6 +1908,53 @@
 {
     "isSuccess": true,
     "data": null,
+    "errorCode": null,
+    "errorMessage": null
+}
+```
+
+#### 响应示例（失败）
+
+```json
+{
+    "isSuccess": false,
+    "data": null,
+    "errorCode": "10000",
+    "errorMessage": "出错啦，后台小哥正在努力修复中..."
+}
+```
+
+## 文件模块
+
+## 错误码表
+|错误码|错误信息|
+|:---:|:---|
+|FILE-20001|用户未登录|
+
+### 上传文件 `POST /file/upload`
+
+**功能说明**
+上传文件到 MinIO 对象存储，返回可访问的 URL。
+支持图片、视频等常见格式。
+文件会按 userId/日期 自动分类存储。
+
+---
+
+#### 请求参数
+|参数名|类型|必填|描述|可选值|
+|:---|:---:|:---:|:---|:---|
+|file|MultipartFile|是|上传的文件（支持 JPG、PNG、MP4 等）|-|
+
+#### 请求示例（成功）
+
+二进制的file，此处省略
+
+#### 响应示例（成功）
+
+```json
+{
+    "isSuccess": true,
+    "data": "http://localhost:9000/my-bucket/2001/2026/07/19/a12b8d5f8ff04d2da0b0d57ee4948a77.jpg",
     "errorCode": null,
     "errorMessage": null
 }

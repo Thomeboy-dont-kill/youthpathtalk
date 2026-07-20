@@ -9,7 +9,6 @@ import co.elastic.clients.elasticsearch._types.query_dsl.Query;
 import co.elastic.clients.elasticsearch.core.SearchResponse;
 import co.elastic.clients.elasticsearch.core.search.PhraseSuggestOption;
 import co.elastic.clients.elasticsearch.core.search.Suggestion;
-import co.elastic.clients.elasticsearch.core.search.SuggestionVariant;
 import co.elastic.clients.json.JsonData;
 import com.alibaba.nacos.shaded.com.google.common.base.Preconditions;
 import com.neu.youthpathtalk.cache.RedisService;
@@ -43,6 +42,7 @@ import org.springframework.data.elasticsearch.core.query.FetchSourceFilter;
 import org.springframework.data.elasticsearch.core.query.HighlightQuery;
 import org.springframework.data.elasticsearch.core.query.highlight.Highlight;
 import org.springframework.data.elasticsearch.core.query.highlight.HighlightField;
+import org.springframework.data.elasticsearch.core.query.highlight.HighlightFieldParameters;
 import org.springframework.data.elasticsearch.core.suggest.response.Suggest;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
@@ -73,7 +73,7 @@ public class SearchServiceImpl implements SearchService {
                         .fields(
                                 SearchConstants.FIELD_TITLE_WITH_BOOST,
                                 SearchConstants.FIELD_TITLE_PINYIN_WITH_BOOST,
-                                SearchConstants.FIELD_CONTENT
+                                SearchConstants.FIELD_PLAINTEXT
                         )
                         .operator(Operator.Or)
                         //不知道设置多少合适
@@ -109,7 +109,13 @@ public class SearchServiceImpl implements SearchService {
                                 new Highlight(
                                         List.of(
                                                 new HighlightField(SearchConstants.FIELD_TITLE),
-                                                new HighlightField(SearchConstants.FIELD_CONTENT)
+                                                new HighlightField(
+                                                        SearchConstants.FIELD_PLAINTEXT,
+                                                        HighlightFieldParameters.builder()
+                                                                .withFragmentSize(SearchConstants.HIGHLIGHT_FRAGMENT_SIZE)
+                                                                .withNumberOfFragments(SearchConstants.HIGHLIGHT_NUMBER_OF_FRAGMENTS)
+                                                                .build()
+                                                )
                                         )
                                 ),
                                 PostDocument.class
@@ -206,11 +212,18 @@ public class SearchServiceImpl implements SearchService {
                 continue;
             }
             Map<String,List<String>> highlight=highlightMap.get(postId);
-            if (Objects.nonNull(highlight)&&highlight.containsKey(SearchConstants.FIELD_TITLE)){
-                vo.setTitle(highlight.get(SearchConstants.FIELD_TITLE).get(0));
-            }
-            if (Objects.nonNull(highlight)&&highlight.containsKey(SearchConstants.FIELD_CONTENT)){
-                vo.setPreview(highlight.get(SearchConstants.FIELD_CONTENT).get(0));
+            if (Objects.nonNull(highlight)){
+                List<String> fragments = highlight.get(SearchConstants.FIELD_TITLE);
+
+                if (!CollectionUtils.isEmpty(fragments)) {
+                    vo.setTitle(fragments.get(0));
+                }
+
+                List<String> fragments1 = highlight.get(SearchConstants.FIELD_PLAINTEXT);
+
+                if (!CollectionUtils.isEmpty(fragments1)) {
+                    vo.setPreview(fragments1.get(0));
+                }
             }
             result.add(vo);
         }

@@ -1,7 +1,10 @@
 package com.neu.youthpathtalk.post.biz.richtext.model;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.neu.youthpathtalk.post.biz.enums.RichTextNodeType;
+import com.neu.youthpathtalk.post.biz.richtext.model.attrs.MentionAttrs;
 import lombok.Data;
 import org.apache.commons.lang3.StringUtils;
 
@@ -13,12 +16,11 @@ import org.apache.commons.lang3.StringUtils;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @Data
 public class RichTextNode {
+    private RichTextNodeType type;
 
-    private RichTextNodeType type; // text / mention
+    private String text;
 
-    private String text; // text node
-
-    private MentionAttrs attrs; // mention node
+    private JsonNode attrs;
 
     public void check() {
 
@@ -39,17 +41,13 @@ public class RichTextNode {
                 }
             }
 
-            case MENTION -> {
-
+            case MENTION, IMAGE, VIDEO -> {
                 if (attrs == null) {
-                    throw new IllegalArgumentException("mention节点属性不能为空");
+                    throw new IllegalArgumentException(type + " 节点attrs不能为空");
                 }
-
                 if (StringUtils.isNotBlank(text)) {
-                    throw new IllegalArgumentException("mention节点不能包含text");
+                    throw new IllegalArgumentException(type + "节点不能包含text");
                 }
-
-                attrs.check();
             }
         }
     }

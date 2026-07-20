@@ -7,19 +7,15 @@ import com.alibaba.otter.canal.protocol.Message;
 import com.alibaba.otter.canal.protocol.exception.CanalClientException;
 import com.neu.youthpathtalk.config.CanalProperties;
 import com.neu.youthpathtalk.constants.CanalConstants;
-import com.neu.youthpathtalk.constants.SearchConstants;
-import com.neu.youthpathtalk.document.PostDocument;
 import com.neu.youthpathtalk.enums.SearchSyncOperation;
 import com.neu.youthpathtalk.message.PostSearchSyncMessage;
 import com.neu.youthpathtalk.producer.SearchSyncProducer;
-import com.neu.youthpathtalk.repository.PostRepository;
 import com.neu.youthpathtalk.util.DateUtils;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.jsoup.Jsoup;
-import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
+//import org.jsoup.Jsoup;
 import org.springframework.stereotype.Component;
 import com.neu.youthpathtalk.domain.FieldMeta;
 
@@ -65,11 +61,11 @@ public class CanalSyncListener {
                     ),
 
                     Map.entry(
-                            "content",
+                            "plain_text",
                             new FieldMeta(
-                                    "content",
+                                    "plainText",
                                     null,
-                                    CanalSyncListener::cleanContent
+                                    v -> v
                             )
                     ),
 
@@ -358,6 +354,7 @@ public class CanalSyncListener {
         return meta.getConverter().apply(value);
     }
 
+/*
     private static String cleanContent(String content){
         if (Objects.isNull(content)||content.isEmpty()){
             return content;
@@ -368,6 +365,7 @@ public class CanalSyncListener {
         }
         return text;
     }
+*/
 
     @PreDestroy
     public void stop(){

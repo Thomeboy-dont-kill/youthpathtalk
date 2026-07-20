@@ -29,6 +29,8 @@ import com.neu.youthpathtalk.post.biz.mapper.PostLikeRecordMapper;
 import com.neu.youthpathtalk.post.biz.mapper.PostMapper;
 import com.neu.youthpathtalk.post.biz.message.InteractCompensateMessage;
 import com.neu.youthpathtalk.post.biz.event.PostLikeEvent;
+import com.neu.youthpathtalk.post.biz.richtext.model.RichTextDoc;
+import com.neu.youthpathtalk.post.biz.richtext.service.RichTextService;
 import com.neu.youthpathtalk.post.biz.rpc.LeafIdGenService;
 import com.neu.youthpathtalk.post.biz.rpc.UserRpcService;
 import com.neu.youthpathtalk.post.biz.service.PostService;
@@ -47,13 +49,11 @@ import org.apache.rocketmq.client.producer.SendCallback;
 import org.apache.rocketmq.client.producer.SendResult;
 import org.apache.rocketmq.client.producer.SendStatus;
 import org.apache.rocketmq.spring.core.RocketMQTemplate;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.messaging.Message;
 import org.springframework.messaging.support.MessageBuilder;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 
-import java.nio.charset.StandardCharsets;
 import java.time.*;
 import java.util.*;
 import java.util.concurrent.Executor;
@@ -76,12 +76,12 @@ public class PostServiceImpl implements PostService {
     private final JsonUtils jsonUtils;
     private final RedisService redisService;
     private final CommentMapper commentMapper;
+    private final RichTextService richTextService;
     private final RocketMQTemplate rocketMQTemplate;
     private final PostLikeRecordMapper postLikeRecordMapper;
     private final FavoriteRecordMapper favoriteRecordMapper;
     private final LocalCacheManager localCacheManager;
     private final CacheInvalidatePublisher cacheInvalidatePublisher;
-    private final ApplicationEventPublisher applicationEventPublisher;
     @Resource(name="taskExecutor")
     private Executor taskExecutor;
 
@@ -107,6 +107,12 @@ public class PostServiceImpl implements PostService {
             throw new BizException(BizResponseErrorCode.AUTH_NOT_LOGIN);
         }
         UserInfoRespVO userInfoRespVO=userRpcService.getUserInfo(userId);
+        RichTextDoc doc =
+                jsonUtils.parseObject(postReqVO.getContent(), RichTextDoc.class);
+        RichTextService.ProcessResult result =
+                richTextService.process(doc);
+        String contentJson =
+                jsonUtils.toJsonString(result.getDoc());
         PostDO postDO = new PostDO()
                 .setId(id)
                 .setUserId(userId)
@@ -116,7 +122,8 @@ public class PostServiceImpl implements PostService {
                 .setUniversityName(userInfoRespVO.getUniversityName())
                 .setBoardType(postReqVO.getBoardType().getType())
                 .setTitle(postReqVO.getTitle())
-                .setContent(postReqVO.getContent());
+                .setContent(contentJson)
+                .setPlainText(result.getPlainText());
         int rows=postMapper.insertSelective(postDO);
         if (rows>0) {
             deleteAllFirstPageCachesAsync();
@@ -546,6 +553,16 @@ public class PostServiceImpl implements PostService {
         if (!Objects.equals(currentUserId,postBasicInfoDTO.getUserId())){
             throw new BizException(BizResponseErrorCode.POST_NOT_OWNER);
         }
+        RichTextDoc doc =
+                jsonUtils.parseObject(postUpdateReqVO.getContent(), RichTextDoc.class);
+
+        RichTextService.ProcessResult result =
+                richTextService.process(doc);
+        String contentJson =
+                jsonUtils.toJsonString(result.getDoc());
+        String plainText = result.getPlainText();
+        postUpdateReqVO.setContent(contentJson);
+        postUpdateReqVO.setPlainText(plainText);
         int rows=postMapper.updatePostById(postUpdateReqVO);
         if (rows==0){
             throw new BizException(BizResponseErrorCode.POST_NOT_EXISTS_OR_DELETED);

@@ -31,7 +31,7 @@ public class VerifyCodeServiceImpl implements VerifyCodeService {
         String verifyCodeKey= UserRedisKey.verifyCode(phone);
         if (redisService.hasKey(verifyCodeKey)) {
             Long verifyCodeTTL = redisService.getVerifyCodeTTL(verifyCodeKey);
-            if (verifyCodeTTL != null && verifyCodeTTL <= UserRedisKey.VERIFY_CODE_TTL - UserRedisKey.VERIFY_CODE_SEND_INTERVAL) {
+            if (verifyCodeTTL != null && verifyCodeTTL > UserRedisKey.VERIFY_CODE_TTL - UserRedisKey.VERIFY_CODE_SEND_INTERVAL) {
                 //如果之前已经发过且没有过期则提示发送频繁
                 throw new BizException(BizResponseErrorCode.VERIFY_CODE_SEND_FREQUENTLY);
             }

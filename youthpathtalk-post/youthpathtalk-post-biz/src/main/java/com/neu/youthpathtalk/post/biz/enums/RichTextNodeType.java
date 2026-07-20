@@ -16,7 +16,11 @@ public enum RichTextNodeType {
 
     TEXT("text"),
 
-    MENTION("mention");
+    MENTION("mention"),
+
+    IMAGE("image"),
+
+    VIDEO("video");
 
     private final String value;
 

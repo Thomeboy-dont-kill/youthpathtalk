@@ -51,7 +51,7 @@
         university_name,
         board_type,
         title,
-        SUBSTRING(content, 1, 50) AS preview,
+        SUBSTRING(plain_text, 1, 50) AS preview,
         view_count,
         like_count,
         comment_count,
@@ -81,7 +81,7 @@
             university_name,
             board_type,
             title,
-            SUBSTRING(content, 1, 50) AS preview,
+            SUBSTRING(plain_text, 1, 50) AS preview,
             view_count,
             like_count,
             comment_count,
@@ -163,6 +163,9 @@
             <if test="content != null">
                 content,
             </if>
+            <if test="plainText != null">
+                plain_text,
+            </if>
         </trim>
         <trim prefix="values (" suffix=")" suffixOverrides=",">
             <if test="id != null">
@@ -219,6 +222,9 @@
             <if test="content != null">
                 #{content,jdbcType=LONGVARCHAR},
             </if>
+            <if test="plainText != null">
+                #{plainText,jdbcType=LONGVARCHAR},
+            </if>
         </trim>
     </insert>
     <update id="updatePostById">
@@ -232,6 +238,9 @@
             </if>
             <if test="content != null and content.trim() != ''">
                 content = #{content},
+            </if>
+            <if test="plainText != null and plainText.trim() != ''">
+                plain_text = #{plainText},
             </if>
             update_time = NOW(),
         </set>

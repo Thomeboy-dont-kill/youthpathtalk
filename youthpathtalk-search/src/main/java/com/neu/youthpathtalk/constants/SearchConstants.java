@@ -27,7 +27,7 @@ public final class SearchConstants {
     public static final String FIELD_TITLE_TRIGRAM =
             "title.trigram";
 
-    public static final String FIELD_CONTENT = "content";
+    public static final String FIELD_PLAINTEXT = "plainText";
 
     public static final String FIELD_BOARDTYPE = "boardType";
 
@@ -86,4 +86,11 @@ public final class SearchConstants {
     public static final int SEARCH_HISTORY_MAX_COUNT = 20;
 
     public static final int SEARCH_HISTORY_MAX_LENGTH = 50;
+
+    /*
+     * highlight
+     */
+    public static final int HIGHLIGHT_FRAGMENT_SIZE = 120;
+
+    public static final int HIGHLIGHT_NUMBER_OF_FRAGMENTS = 1;
 }

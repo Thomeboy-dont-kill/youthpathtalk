@@ -1,10 +1,8 @@
 package com.neu.youthpathtalk.domain;
 
-import com.neu.youthpathtalk.document.PostDocument;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 
-import java.util.function.BiConsumer;
 import java.util.function.Function;
 
 /**
